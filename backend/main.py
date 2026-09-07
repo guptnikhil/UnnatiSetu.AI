@@ -223,6 +223,10 @@ def parse_natural_language(input_data: NlpParseInput):
         business = "E-Rickshaw"
     elif "transport" in prompt or "vehicle" in prompt or "auto" in prompt:
         business = "Transport"
+    elif "manufactur" in prompt or "factory" in prompt or "production" in prompt or "उत्पादन" in prompt:
+        business = "Manufacturing"
+    elif "food" in prompt or "catering" in prompt or "restaurant" in prompt or "खाना" in prompt:
+        business = "Food Processing"
 
     loan_amount = 100000.0
     # Try finding numeric numbers in prompt
