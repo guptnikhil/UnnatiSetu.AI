@@ -1,18 +1,74 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Users, CheckCircle, Clock, Building2, AlertTriangle, Search, Filter, RefreshCw, Layers, ArrowUpRight } from 'lucide-react';
+import { useAuth } from '../../context/SupabaseAuthContext';
+import { Users, CheckCircle, Clock, Building2, AlertTriangle, Search, RefreshCw, Layers, Languages, ChevronDown, ChevronUp, LogOut, UserCircle } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell } from 'recharts';
+import { translateText } from '../../services/sarvam';
+
+/**
+ * TranslatedCell — shows an applicant's original free-text input with an
+ * inline "Translate" toggle that fetches an English version via Sarvam.
+ * The original is always preserved and shown on toggle — never discarded.
+ */
+function TranslatedCell({ originalText, theme }) {
+  const [showTranslated, setShowTranslated] = useState(false);
+  const [translatedText, setTranslatedText] = useState(null);
+  const [isTranslating, setIsTranslating] = useState(false);
+
+  if (!originalText) return null;
+
+  const handleToggle = async (e) => {
+    e.stopPropagation();
+    if (showTranslated) {
+      setShowTranslated(false);
+      return;
+    }
+    if (!translatedText) {
+      setIsTranslating(true);
+      const result = await translateText(originalText, 'en-IN');
+      setTranslatedText(result.success ? result.translated_text : originalText);
+      setIsTranslating(false);
+    }
+    setShowTranslated(true);
+  };
+
+  return (
+    <div className="space-y-1">
+      <p className={`text-xs leading-relaxed ${theme === 'light' ? 'text-slate-700' : 'text-slate-300'}`}>
+        {showTranslated ? translatedText : originalText}
+      </p>
+      <button
+        onClick={handleToggle}
+        disabled={isTranslating}
+        className={`flex items-center gap-1 text-[10px] font-semibold transition-colors ${
+          theme === 'light'
+            ? 'text-amber-700 hover:text-amber-900'
+            : 'text-amber-400 hover:text-amber-300'
+        }`}
+      >
+        <Languages className="w-3 h-3" />
+        {isTranslating
+          ? 'Translating…'
+          : showTranslated
+          ? 'Show Original'
+          : 'View in English'}
+      </button>
+    </div>
+  );
+}
 
 export default function AdminDashboard() {
   const { t, lang, theme } = useApp();
+  const { adminProfile, signOut, isSupabaseConfigured, session } = useAuth();
   const [metrics, setMetrics] = useState(null);
   const [applicants, setApplicants] = useState([]);
   const [statusFilter, setStatusFilter] = useState("All");
   const [stateFilter, setStateFilter] = useState("All");
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(false);
+  const [expandedAppId, setExpandedAppId] = useState(null);
 
-  const fetchAdminData = async () => {
+  const fetchAdminData = useCallback(async () => {
     setLoading(true);
     try {
       // Fetch KPI metrics
@@ -42,20 +98,78 @@ export default function AdminDashboard() {
         active_channel_partners_count: 6
       });
       setApplicants([
-        { id: "APP-2026-8801", name: "Ramesh Kumar", gender: "Male", category: "SC", annual_income: 120000, state: "Uttar Pradesh", district: "Lucknow", business_type: "Micro Enterprise", loan_amount_requested: 100000, matched_scheme_id: "SCH_MCS", matched_partner_id: "CP_UP_SCA_01", status: "Matched", stuck_alert: false },
-        { id: "APP-2026-8802", name: "Sunita Devi", gender: "Female", category: "SC", annual_income: 95000, state: "Bihar", district: "Patna", business_type: "Dairy/Agri", loan_amount_requested: 120000, matched_scheme_id: "SCH_MSY", matched_partner_id: "CP_BH_SCA_01", status: "Pending Docs", stuck_alert: true },
-        { id: "APP-2026-8803", name: "Anita Rani", gender: "Female", category: "SC", annual_income: 150000, state: "Delhi", district: "Central Delhi", business_type: "Beauty Parlour", loan_amount_requested: 140000, matched_scheme_id: "SCH_MSY", matched_partner_id: "CP_DL_SBI_01", status: "Disbursed", stuck_alert: false },
-        { id: "APP-2026-8804", name: "Rajesh Sonkar", gender: "Male", category: "SC", annual_income: 210000, state: "Uttar Pradesh", district: "Varanasi", business_type: "Transport", loan_amount_requested: 500000, matched_scheme_id: "SCH_TLS", matched_partner_id: "CP_UP_PNB_02", status: "Under Review", stuck_alert: false },
-        { id: "APP-2026-8805", name: "Pooja Valmiki", gender: "Female", category: "SC", annual_income: 80000, state: "Maharashtra", district: "Mumbai Suburbs", business_type: "Tailoring", loan_amount_requested: 100000, matched_scheme_id: "SCH_MSY", matched_partner_id: "CP_MH_SCA_01", status: "New", stuck_alert: false }
+        { id: "APP-2026-8801", name: "Ramesh Kumar", gender: "Male", category: "SC", annual_income: 120000, state: "Uttar Pradesh", district: "Lucknow", business_type: "Micro Enterprise", loan_amount_requested: 100000, matched_scheme_id: "SCH_MCS", matched_partner_id: "CP_UP_SCA_01", status: "Matched", stuck_alert: false, intake_transcript: "I am Ramesh from Lucknow. I want a loan of ₹1,00,000 to open a small grocery retail shop." },
+        { id: "APP-2026-8802", name: "Sunita Devi", gender: "Female", category: "SC", annual_income: 95000, state: "Bihar", district: "Patna", business_type: "Dairy/Agri", loan_amount_requested: 120000, matched_scheme_id: "SCH_MSY", matched_partner_id: "CP_BH_SCA_01", status: "Pending Docs", stuck_alert: true, intake_transcript: "मैं सुनीता देवी, अनुसूचित जाति महिला किसान हूँ। मुझे डेयरी फार्म के लिए ₹1,20,000 का लोन चाहिए।" },
+        { id: "APP-2026-8803", name: "Anita Rani", gender: "Female", category: "SC", annual_income: 150000, state: "Delhi", district: "Central Delhi", business_type: "Beauty Parlour", loan_amount_requested: 140000, matched_scheme_id: "SCH_MSY", matched_partner_id: "CP_DL_SBI_01", status: "Disbursed", stuck_alert: false, intake_transcript: "I am Anita Rani from Delhi. I want a loan of ₹1,40,000 for my beauty parlour." },
+        { id: "APP-2026-8804", name: "Rajesh Sonkar", gender: "Male", category: "SC", annual_income: 210000, state: "Uttar Pradesh", district: "Varanasi", business_type: "Transport", loan_amount_requested: 500000, matched_scheme_id: "SCH_TLS", matched_partner_id: "CP_UP_PNB_02", status: "Under Review", stuck_alert: false, intake_transcript: "I am Rajesh Sonkar. I need ₹5 lakh loan for transport business in Varanasi." },
+        { id: "APP-2026-8805", name: "Pooja Valmiki", gender: "Female", category: "SC", annual_income: 80000, state: "Maharashtra", district: "Mumbai Suburbs", business_type: "Tailoring", loan_amount_requested: 100000, matched_scheme_id: "SCH_MSY", matched_partner_id: "CP_MH_SCA_01", status: "New", stuck_alert: false, intake_transcript: "मला मुंबईमध्ये शिलाई व्यवसायासाठी ₹१,००,००० कर्ज हवे आहे." }
       ]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [statusFilter, stateFilter]);
 
+  // Initial load + refetch when filters change
   useEffect(() => {
     fetchAdminData();
-  }, [statusFilter, stateFilter]);
+  }, [fetchAdminData]);
+
+  // Supabase real-time subscription — broadcasts new applicants and status updates
+  // to all connected admin tabs without requiring a manual refresh.
+  useEffect(() => {
+    if (!isSupabaseConfigured || !session) return;
+
+    // Dynamically import to avoid crashing when Supabase is not configured
+    import('../../context/SupabaseAuthContext').then(({ supabase }) => {
+      if (!supabase) return;
+
+      const channel = supabase
+        .channel('admin-applicants-realtime')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'applicants' },
+          (payload) => {
+            // INSERT: prepend new row
+            if (payload.eventType === 'INSERT') {
+              const r = payload.new;
+              const normalised = {
+                id: r.applicant_id,
+                name: r.name || '',
+                age: r.age,
+                gender: r.gender || '',
+                category: r.caste_category || '',
+                annual_income: r.annual_income || 0,
+                district: (r.state_district || '').split(',')[0].trim(),
+                state: (r.state_district || '').split(',').pop().trim(),
+                business_type: r.business_sector || '',
+                loan_amount_requested: r.loan_needed || 0,
+                matched_scheme_id: '',
+                matched_partner_id: '',
+                status: r.status || 'New',
+                stuck_alert: r.status === 'Pending Documents',
+                created_at: r.created_at,
+                intake_transcript: r.nlp_intake_text || '',
+                detected_language: r.detected_language || 'en-IN',
+              };
+              setApplicants(prev => [normalised, ...prev]);
+              setMetrics(prev => prev ? { ...prev, total_applicants: (prev.total_applicants || 0) + 1 } : prev);
+            }
+            // UPDATE: patch the existing row in-place
+            if (payload.eventType === 'UPDATE') {
+              const r = payload.new;
+              setApplicants(prev => prev.map(a =>
+                a.id === r.applicant_id
+                  ? { ...a, status: r.status, stuck_alert: r.status === 'Pending Documents' }
+                  : a
+              ));
+            }
+          }
+        )
+        .subscribe();
+
+      return () => { supabase.removeChannel(channel); };
+    });
+  }, [isSupabaseConfigured, session]);
 
   const handleStatusUpdate = async (appId, newStatus) => {
     try {
@@ -99,18 +213,52 @@ export default function AdminDashboard() {
           </p>
         </div>
 
-        <button
-          onClick={fetchAdminData}
-          disabled={loading}
-          className={`self-start sm:self-auto px-4 py-2 rounded-xl border text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
-            theme === 'light'
-              ? 'bg-white hover:bg-slate-100 border-slate-300 text-slate-800 shadow-sm'
-              : 'bg-slate-800 hover:bg-slate-700 text-amber-400 border-slate-700'
-          }`}
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          <span>{t.btnRefresh}</span>
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+          {/* Signed-in admin badge */}
+          {adminProfile && (
+            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs ${
+              theme === 'light' ? 'bg-slate-50 border-slate-200 text-slate-700' : 'bg-slate-800 border-slate-700 text-slate-300'
+            }`}>
+              <UserCircle className="w-3.5 h-3.5 text-amber-500" />
+              <span className="font-semibold">{adminProfile.full_name || 'Officer'}</span>
+              <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono ${
+                adminProfile.role === 'regional_head'
+                  ? 'bg-purple-500/20 text-purple-400'
+                  : 'bg-amber-500/10 text-amber-500'
+              }`}>
+                {adminProfile.role === 'regional_head' ? 'Regional Head' : 'Officer'}
+              </span>
+            </div>
+          )}
+
+          {/* Sign-out (only when Supabase auth is active) */}
+          {isSupabaseConfigured && session && (
+            <button
+              onClick={signOut}
+              className={`px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                theme === 'light'
+                  ? 'bg-white hover:bg-rose-50 border-slate-200 hover:border-rose-300 text-slate-600 hover:text-rose-600'
+                  : 'bg-slate-800 hover:bg-rose-900/30 border-slate-700 hover:border-rose-700 text-slate-400 hover:text-rose-400'
+              }`}
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              Sign Out
+            </button>
+          )}
+
+          <button
+            onClick={fetchAdminData}
+            disabled={loading}
+            className={`px-4 py-2 rounded-xl border text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+              theme === 'light'
+                ? 'bg-white hover:bg-slate-100 border-slate-300 text-slate-800 shadow-sm'
+                : 'bg-slate-800 hover:bg-slate-700 text-amber-400 border-slate-700'
+            }`}
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <span>{t.btnRefresh}</span>
+          </button>
+        </div>
       </div>
 
       {/* KPI Cards Grid */}
@@ -310,61 +458,104 @@ export default function AdminDashboard() {
             </thead>
             <tbody className={`divide-y ${theme === 'light' ? 'divide-slate-200/80' : 'divide-slate-800/60'}`}>
               {filteredApplicants.map((app) => (
-                <tr key={app.id} className={`transition-all ${theme === 'light' ? 'hover:bg-slate-50' : 'hover:bg-slate-900/60'}`}>
-                  <td className="p-3">
-                    <div className={`font-bold flex items-center gap-1.5 ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
-                      <span>{app.name}</span>
-                      {app.stuck_alert && (
-                        <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" title="Missing documents alert" />
-                      )}
-                    </div>
-                    <div className={`text-[10px] font-mono ${theme === 'light' ? 'text-slate-500' : 'text-slate-500'}`}>
-                      {app.id} • {app.category} ({app.gender})
-                    </div>
-                  </td>
+                <React.Fragment key={app.id}>
+                  <tr className={`transition-all ${theme === 'light' ? 'hover:bg-slate-50' : 'hover:bg-slate-900/60'}`}>
+                    <td className="p-3">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setExpandedAppId(expandedAppId === app.id ? null : app.id)}
+                          className={`p-1 rounded transition-colors ${
+                            theme === 'light' ? 'hover:bg-slate-200' : 'hover:bg-slate-800'
+                          }`}
+                        >
+                          {expandedAppId === app.id ? (
+                            <ChevronUp className="w-3.5 h-3.5 text-amber-500" />
+                          ) : (
+                            <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                          )}
+                        </button>
+                        <div>
+                          <div className={`font-bold flex items-center gap-1.5 ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                            <span>{app.name}</span>
+                            {app.stuck_alert && (
+                              <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" title="Missing documents alert" />
+                            )}
+                          </div>
+                          <div className={`text-[10px] font-mono ${theme === 'light' ? 'text-slate-500' : 'text-slate-500'}`}>
+                            {app.id} • {app.category} ({app.gender})
+                          </div>
+                        </div>
+                      </div>
+                    </td>
 
-                  <td className="p-3">
-                    <div className={theme === 'light' ? 'text-slate-800' : 'text-slate-200'}>{app.district}, {app.state}</div>
-                    <div className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">{app.business_type}</div>
-                  </td>
+                    <td className="p-3">
+                      <div className={theme === 'light' ? 'text-slate-800' : 'text-slate-200'}>{app.district}, {app.state}</div>
+                      <div className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">{app.business_type}</div>
+                    </td>
 
-                  <td className="p-3">
-                    <div className="font-extrabold text-emerald-600 dark:text-emerald-400">
-                      ₹{app.loan_amount_requested.toLocaleString('en-IN')}
-                    </div>
-                    <div className={`text-[10px] ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
-                      Income: ₹{app.annual_income.toLocaleString('en-IN')}
-                    </div>
-                  </td>
+                    <td className="p-3">
+                      <div className="font-extrabold text-emerald-600 dark:text-emerald-400">
+                        ₹{app.loan_amount_requested.toLocaleString('en-IN')}
+                      </div>
+                      <div className={`text-[10px] ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                        Income: ₹{app.annual_income.toLocaleString('en-IN')}
+                      </div>
+                    </td>
 
-                  <td className="p-3">
-                    <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 font-mono font-bold text-[10px]">
-                      {app.matched_scheme_id}
-                    </span>
-                  </td>
+                    <td className="p-3">
+                      <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 font-mono font-bold text-[10px]">
+                        {app.matched_scheme_id}
+                      </span>
+                    </td>
 
-                  <td className="p-3">
-                    <select
-                      value={app.status}
-                      onChange={(e) => handleStatusUpdate(app.id, e.target.value)}
-                      className={`text-xs font-bold rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer ${
-                        app.status === 'Disbursed'
-                          ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40'
-                          : app.status === 'Matched'
-                          ? 'bg-sky-500/20 text-sky-700 dark:text-sky-300 border border-sky-500/40'
-                          : app.status === 'Pending Docs'
-                          ? 'bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/40'
-                          : 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/40'
-                      }`}
-                    >
-                      <option value="New" className={theme === 'light' ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'}>New</option>
-                      <option value="Matched" className={theme === 'light' ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'}>Matched</option>
-                      <option value="Under Review" className={theme === 'light' ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'}>Under Review</option>
-                      <option value="Pending Docs" className={theme === 'light' ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'}>Pending Docs</option>
-                      <option value="Disbursed" className={theme === 'light' ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'}>Disbursed</option>
-                    </select>
-                  </td>
-                </tr>
+                    <td className="p-3">
+                      <select
+                        value={app.status}
+                        onChange={(e) => handleStatusUpdate(app.id, e.target.value)}
+                        className={`text-xs font-bold rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer ${
+                          app.status === 'Disbursed'
+                            ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40'
+                            : app.status === 'Matched'
+                            ? 'bg-sky-500/20 text-sky-700 dark:text-sky-300 border border-sky-500/40'
+                            : app.status === 'Pending Docs'
+                            ? 'bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/40'
+                            : 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/40'
+                        }`}
+                      >
+                        <option value="New" className={theme === 'light' ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'}>New</option>
+                        <option value="Matched" className={theme === 'light' ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'}>Matched</option>
+                        <option value="Under Review" className={theme === 'light' ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'}>Under Review</option>
+                        <option value="Pending Docs" className={theme === 'light' ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'}>Pending Docs</option>
+                        <option value="Disbursed" className={theme === 'light' ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'}>Disbursed</option>
+                      </select>
+                    </td>
+                  </tr>
+
+                  {/* Expandable Detail Row — shows original + translated transcript */}
+                  {expandedAppId === app.id && (
+                    <tr className={theme === 'light' ? 'bg-slate-50' : 'bg-slate-900/40'}>
+                      <td colSpan={5} className="p-4">
+                        <div className={`rounded-xl border p-4 ${
+                          theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-950/60 border-slate-800'
+                        }`}>
+                          <h4 className={`text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5 ${
+                            theme === 'light' ? 'text-slate-600' : 'text-slate-400'
+                          }`}>
+                            <Languages className="w-3.5 h-3.5 text-amber-500" />
+                            Applicant Intake Transcript
+                          </h4>
+                          {app.intake_transcript ? (
+                            <TranslatedCell originalText={app.intake_transcript} theme={theme} />
+                          ) : (
+                            <p className={`text-xs italic ${theme === 'light' ? 'text-slate-400' : 'text-slate-500'}`}>
+                              No voice/text transcript recorded for this applicant.
+                            </p>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
               ))}
             </tbody>
           </table>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { CheckCircle2, XCircle, Info, ChevronDown, ChevronUp, Sparkles, ArrowRight, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, XCircle, Info, ChevronDown, ChevronUp, Sparkles, ArrowRight, ShieldCheck, Volume2, Loader2 } from 'lucide-react';
+import { speakText, SARVAM_LANG_CODES } from '../../services/sarvam';
 
 const SCHEME_TRANSLATIONS = {
   SCH_MSY: {
@@ -46,8 +47,9 @@ const SCHEME_TRANSLATIONS = {
 };
 
 export default function SchemeRecommender() {
-  const { recommendations, selectedScheme, setSelectedScheme, setCurrentStep, t, lang, theme, calculateEmi, applicantProfile, fetchPartners } = useApp();
+  const { recommendations, selectedScheme, setSelectedScheme, setCurrentStep, t, lang, theme, calculateEmi, applicantProfile, fetchPartners, detectedLang } = useApp();
   const [openAuditId, setOpenAuditId] = useState(null);
+  const [speakingSchemeId, setSpeakingSchemeId] = useState(null);
 
   const getSchemeDetails = (schemeId, fallbackEnName, fallbackEnDesc) => {
     const s = SCHEME_TRANSLATIONS[schemeId];
@@ -65,6 +67,49 @@ export default function SchemeRecommender() {
   const handleProceedToEmi = (rec) => {
     handleSelectScheme(rec);
     setCurrentStep(3);
+  };
+
+  /**
+   * Reads the eligibility explanation aloud using Sarvam Bulbul TTS.
+   * Builds a plain-language summary of passed/failed rules and sends it to
+   * /api/sarvam/tts in the user's detected (or selected) language.
+   * Falls back silently if TTS is unavailable — button simply does nothing visible.
+   */
+  const handleSpeakExplanation = async (e, rec, details) => {
+    e.stopPropagation();
+    const schemeId = rec.scheme.id;
+    if (speakingSchemeId === schemeId) return; // already playing
+
+    // Resolve TTS language: use Sarvam-detected lang first, then UI lang, then default hi-IN
+    const ttsLangCode = detectedLang || SARVAM_LANG_CODES[lang] || 'hi-IN';
+
+    // Build a concise spoken summary of the eligibility result
+    const eligibilityLine = rec.is_eligible
+      ? `You are eligible for ${details.name}.`
+      : `You do not fully qualify for ${details.name} yet.`;
+
+    const passedLines = rec.passed_rules
+      .slice(0, 3)
+      .map(r => r.label_en)
+      .join('. ');
+
+    const failedLines = rec.failed_rules
+      .slice(0, 2)
+      .map(r => r.label_en)
+      .join('. ');
+
+    const spokenText = [
+      eligibilityLine,
+      passedLines ? `Matching criteria: ${passedLines}.` : '',
+      failedLines ? `Not matching: ${failedLines}.` : '',
+      rec.is_eligible
+        ? `The interest rate is ${rec.scheme.interest_rate_pa} percent per year and you can borrow up to ${(rec.capped_loan_amount / 100000).toFixed(1)} lakh rupees.`
+        : '',
+    ].filter(Boolean).join(' ');
+
+    setSpeakingSchemeId(schemeId);
+    await speakText(spokenText, ttsLangCode);
+    setSpeakingSchemeId(null);
   };
 
   if (!recommendations || recommendations.length === 0) {
@@ -179,17 +224,39 @@ export default function SchemeRecommender() {
               <div className={`pt-2 border-t flex items-center justify-between ${
                 theme === 'light' ? 'border-slate-200' : 'border-slate-800/80'
               }`}>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setOpenAuditId(openAuditId === scheme.id ? null : scheme.id);
-                  }}
-                  className="text-xs text-amber-600 dark:text-amber-400 font-semibold hover:underline flex items-center gap-1"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>{t.explainHeader}</span>
-                  {openAuditId === scheme.id ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpenAuditId(openAuditId === scheme.id ? null : scheme.id);
+                    }}
+                    className="text-xs text-amber-600 dark:text-amber-400 font-semibold hover:underline flex items-center gap-1"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>{t.explainHeader}</span>
+                    {openAuditId === scheme.id ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  </button>
+
+                  {/* TTS Speaker Icon — reads explanation aloud for low-literacy users */}
+                  <button
+                    onClick={(e) => handleSpeakExplanation(e, rec, details)}
+                    disabled={speakingSchemeId === scheme.id}
+                    title="Listen to eligibility explanation (Text-to-Speech)"
+                    className={`p-1.5 rounded-lg transition-all ${
+                      speakingSchemeId === scheme.id
+                        ? 'bg-amber-500 text-white cursor-wait'
+                        : theme === 'light'
+                        ? 'bg-slate-100 hover:bg-amber-100 text-amber-700 border border-slate-200'
+                        : 'bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700'
+                    }`}
+                  >
+                    {speakingSchemeId === scheme.id ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Volume2 className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                </div>
 
                 <button
                   onClick={(e) => {

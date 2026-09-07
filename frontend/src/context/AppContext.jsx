@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { extractProfile as sarvamExtractProfile, detectLanguage as sarvamDetectLanguage } from '../services/sarvam';
 
 const AppContext = createContext();
 
@@ -387,7 +388,62 @@ export const AppProvider = ({ children }) => {
   const [submittedApplication, setSubmittedApplication] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  // Sarvam AI: detected language code from STT (e.g. "hi-IN") used for TTS playback
+  const [detectedLang, setDetectedLang] = useState(null);
+
   const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
+
+  /**
+   * extractProfileSarvam — calls Sarvam chat/completions via the backend proxy
+   * to extract structured fields from a voice transcript or typed sentence.
+   *
+   * Returns only the non-null fields so callers can do a safe partial-merge.
+   * Falls back to the existing rule-based NLP parser (/api/nlp/parse) if Sarvam
+   * is unavailable — the user is never left with a dead-end error.
+   *
+   * IMPORTANT: this result is used ONLY to pre-populate the intake form.
+   * The eligibility decision is made solely by the deterministic rules engine.
+   */
+  const extractProfileSarvam = async (transcript) => {
+    if (!transcript?.trim()) return {};
+
+    // Try Sarvam first
+    const result = await sarvamExtractProfile(transcript);
+    if (result.success && Object.keys(result.extracted_profile).length > 0) {
+      return result.extracted_profile;
+    }
+
+    // Fallback: existing rule-based NLP parser
+    try {
+      const res = await fetch('/api/nlp/parse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text_prompt: transcript }),
+      });
+      const data = await res.json();
+      return data.extracted_profile || {};
+    } catch {
+      return {};
+    }
+  };
+
+  /**
+   * detectAndSetLanguage — runs Sarvam LID on a text snippet and, if the
+   * detected language is one we support, auto-switches the UI language.
+   * Stores the full language_code (e.g. "hi-IN") in detectedLang for TTS.
+   */
+  const detectAndSetLanguage = async (text) => {
+    if (!text?.trim()) return;
+    const result = await sarvamDetectLanguage(text);
+    if (result.success) {
+      setDetectedLang(result.language_code); // e.g. "hi-IN" — used by TTS
+      const shortCode = result.lang_short;   // e.g. "hi"
+      const supported = ['en', 'hi', 'bn', 'mr', 'te', 'ta'];
+      if (supported.includes(shortCode)) {
+        setLang(shortCode);
+      }
+    }
+  };
 
   // Evaluate schemes via API
   const evaluateSchemes = async (profile = applicantProfile) => {
@@ -537,7 +593,12 @@ export const AppProvider = ({ children }) => {
         setSubmittedApplication,
         evaluateSchemes,
         fetchPartners,
-        loading
+        loading,
+        // Sarvam AI additions
+        detectedLang,
+        setDetectedLang,
+        extractProfileSarvam,
+        detectAndSetLanguage,
       }}
     >
       {children}

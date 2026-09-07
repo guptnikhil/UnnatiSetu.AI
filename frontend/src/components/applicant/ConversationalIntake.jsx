@@ -1,11 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Mic, MicOff, Sparkles, Send, User, MapPin, Briefcase, IndianRupee, Layers, CheckCircle2 } from 'lucide-react';
+import { Mic, MicOff, Sparkles, Send, User, MapPin, Briefcase, IndianRupee, Layers, CheckCircle2, Loader2 } from 'lucide-react';
+import { speechToText } from '../../services/sarvam';
 
 export default function ConversationalIntake() {
-  const { t, lang, theme, applicantProfile, setApplicantProfile, evaluateSchemes, loading } = useApp();
+  const { 
+    t, lang, theme, applicantProfile, setApplicantProfile, 
+    evaluateSchemes, loading, extractProfileSarvam, detectAndSetLanguage 
+  } = useApp();
+  
   const [inputText, setInputText] = useState("");
   const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
 
   const samplePersonas = [
     {
@@ -66,16 +75,63 @@ export default function ConversationalIntake() {
     setInputText(p.text);
   };
 
-  const handleVoiceToggle = () => {
+  /**
+   * Real voice recording with MediaRecorder → Sarvam STT → LID → extraction
+   */
+  const handleVoiceToggle = async () => {
     if (!isRecording) {
-      setIsRecording(true);
-      setTimeout(() => {
-        setIsRecording(false);
-        const p = samplePersonas[1];
-        setApplicantProfile(p.profile);
-        setInputText("मैं सुनीता देवी, अनुसूचित जाति महिला किसान हूँ। मुझे डेयरी फार्म के लिए ₹1,20,000 का लोन चाहिए।");
-      }, 3000);
+      // Start recording
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
+        const recorder = new MediaRecorder(stream, { mimeType });
+        
+        audioChunksRef.current = [];
+        
+        recorder.ondataavailable = (e) => {
+          if (e.data.size > 0) audioChunksRef.current.push(e.data);
+        };
+        
+        recorder.onstop = async () => {
+          stream.getTracks().forEach(track => track.stop());
+          
+          const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+          setIsTranscribing(true);
+          
+          // Call Sarvam STT
+          const sttResult = await speechToText(audioBlob, mimeType);
+          
+          if (sttResult.success && sttResult.transcript) {
+            setInputText(sttResult.transcript);
+            
+            // Auto-detect language and switch UI
+            await detectAndSetLanguage(sttResult.transcript);
+            
+            // Extract structured fields
+            const extracted = await extractProfileSarvam(sttResult.transcript);
+            if (Object.keys(extracted).length > 0) {
+              setApplicantProfile(prev => ({ ...prev, ...extracted }));
+            }
+          } else {
+            // Graceful degradation — user can type instead
+            console.warn('[Voice] STT unavailable — please type your query');
+          }
+          
+          setIsTranscribing(false);
+        };
+        
+        recorder.start();
+        mediaRecorderRef.current = recorder;
+        setIsRecording(true);
+      } catch (err) {
+        console.error('[Voice] Microphone access denied or unavailable:', err);
+        alert('Microphone access denied. Please type your query instead.');
+      }
     } else {
+      // Stop recording
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
+      }
       setIsRecording(false);
     }
   };
@@ -85,22 +141,15 @@ export default function ConversationalIntake() {
       evaluateSchemes(applicantProfile);
       return;
     }
-    try {
-      const res = await fetch('/api/nlp/parse', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text_prompt: inputText })
-      });
-      const data = await res.json();
-      if (data.extracted_profile) {
-        setApplicantProfile(prev => ({ ...prev, ...data.extracted_profile }));
-        evaluateSchemes({ ...applicantProfile, ...data.extracted_profile });
-        return;
-      }
-    } catch (err) {
-      console.warn("NLP API offline, continuing with current profile:", err);
+    
+    // Extract via Sarvam if text was manually typed (not already extracted by voice flow)
+    const extracted = await extractProfileSarvam(inputText);
+    if (Object.keys(extracted).length > 0) {
+      setApplicantProfile(prev => ({ ...prev, ...extracted }));
+      evaluateSchemes({ ...applicantProfile, ...extracted });
+    } else {
+      evaluateSchemes(applicantProfile);
     }
-    evaluateSchemes(applicantProfile);
   };
 
   return (
@@ -175,15 +224,23 @@ export default function ConversationalIntake() {
           <div className="absolute right-3 bottom-3 flex items-center space-x-2">
             <button
               onClick={handleVoiceToggle}
+              disabled={isTranscribing}
               className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                 isRecording
                   ? 'bg-red-500 text-white animate-pulse shadow-lg shadow-red-500/50'
+                  : isTranscribing
+                  ? 'bg-amber-500 text-white cursor-wait'
                   : theme === 'light'
                   ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300'
                   : 'bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700'
               }`}
             >
-              {isRecording ? (
+              {isTranscribing ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Transcribing...</span>
+                </>
+              ) : isRecording ? (
                 <>
                   <MicOff className="w-4 h-4" />
                   <span>{t.voiceBtnStop}</span>

@@ -2,14 +2,29 @@ import os
 import uuid
 import datetime
 from typing import Dict, Any, List, Optional
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from synthetic_data import NSFDC_SCHEMES, SYNTHETIC_CHANNEL_PARTNERS, SYNTHETIC_APPLICANTS
 from rules_engine import evaluate_applicant_eligibility
 from financial_engine import calculate_loan_schedule
 from partner_ranker import rank_channel_partners
+from sarvam_service import (
+    transcribe_audio,
+    detect_language,
+    translate_text,
+    extract_profile_from_text,
+    text_to_speech,
+    LANGUAGE_CODES,
+)
+import supabase_client as db
+
+# Determine whether Supabase is wired up; if not, fall back to in-memory data
+_USE_SUPABASE = db.is_supabase_configured()
 
 app = FastAPI(
     title="UnnatiSetu.ai API Engine",
@@ -87,11 +102,19 @@ def read_root():
         "status": "Operational",
         "timestamp": datetime.datetime.utcnow().isoformat(),
         "schemes_count": len(NSFDC_SCHEMES),
-        "partners_count": len(SYNTHETIC_CHANNEL_PARTNERS)
+        "partners_count": len(SYNTHETIC_CHANNEL_PARTNERS),
+        "supabase_connected": _USE_SUPABASE,
     }
 
 @app.get("/api/schemes")
 def get_schemes():
+    if _USE_SUPABASE:
+        try:
+            schemes = db.fetch_schemes()
+            if schemes:
+                return {"schemes": schemes}
+        except Exception as e:
+            print(f"[Supabase] fetch_schemes failed, falling back: {e}")
     return {"schemes": NSFDC_SCHEMES}
 
 @app.post("/api/recommend")
@@ -117,10 +140,50 @@ def calculate_emi(data: EmiCalculationInput):
 
 @app.post("/api/rank-partners")
 def get_ranked_partners(data: PartnerRankInput):
+    # Pull live partner data from Supabase if available, otherwise use synthetic
+    if _USE_SUPABASE:
+        try:
+            partners_raw = db.fetch_channel_partners(state_filter=data.state)
+            if partners_raw:
+                # Adapt Supabase schema to the format partner_ranker expects
+                adapted = []
+                for p in partners_raw:
+                    adapted.append({
+                        "id": str(p.get("partner_id", "")),
+                        "name": p.get("name", ""),
+                        "type": "Channel Partner",
+                        "district": (p.get("state_district") or "").split(",")[0].strip(),
+                        "state": (p.get("state_district") or "").split(",")[-1].strip(),
+                        "lat": p.get("latitude", 0),
+                        "lng": p.get("longitude", 0),
+                        "supported_scheme_ids": p.get("schemes_supported") or [],
+                        "capacity_score": p.get("capacity_score", 70),
+                        "npa_status": f"NPA {p.get('npa_status_synthetic', 3.0):.1f}% (simulated)",
+                        "avg_turnaround_days": 21,
+                        "last_verified": str(p.get("last_verified", "")),
+                        "pincode": "",
+                        "contact_phone": "",
+                        "address": p.get("state_district", ""),
+                        "capacity_label_en": "Capacity data simulated for prototype",
+                        "capacity_label_hi": "क्षमता डेटा प्रोटोटाइप के लिए सिमुलेटेड है",
+                    })
+                from synthetic_data import SYNTHETIC_CHANNEL_PARTNERS as _orig
+                import synthetic_data as _sd
+                _sd.SYNTHETIC_CHANNEL_PARTNERS = adapted
+                ranked = rank_channel_partners(
+                    applicant_state=data.state,
+                    applicant_district=data.district,
+                    target_scheme_id=data.target_scheme_id,
+                )
+                _sd.SYNTHETIC_CHANNEL_PARTNERS = _orig
+                return {"ranked_partners": ranked}
+        except Exception as e:
+            print(f"[Supabase] fetch_channel_partners failed, falling back: {e}")
+
     ranked = rank_channel_partners(
         applicant_state=data.state,
         applicant_district=data.district,
-        target_scheme_id=data.target_scheme_id
+        target_scheme_id=data.target_scheme_id,
     )
     return {"ranked_partners": ranked}
 
@@ -204,9 +267,45 @@ def parse_natural_language(input_data: NlpParseInput):
 
 @app.post("/api/applicants/submit")
 async def submit_application(data: SubmitApplicationInput):
-    app_id = f"APP-2026-{len(APPLICANTS_DB) + 8806}"
+    # --- Write to Supabase (service role) ---
+    supabase_applicant_id = None
+    if _USE_SUPABASE:
+        try:
+            row = db.insert_applicant({
+                "name": data.name,
+                "age": 30,
+                "gender": data.gender,
+                "caste_category": data.category,
+                "annual_income": data.annual_income,
+                "business_sector": data.business_type,
+                "loan_needed": data.loan_amount_requested,
+                "state_district": f"{data.district}, {data.state}",
+                "status": "Matched",
+            })
+            supabase_applicant_id = row.get("applicant_id")
+
+            # Write recommendations produced by the rule engine
+            if supabase_applicant_id:
+                evaluations = evaluate_applicant_eligibility(data.dict())
+                recs_to_insert = []
+                for ev in evaluations:
+                    recs_to_insert.append({
+                        "applicant_id": supabase_applicant_id,
+                        "scheme_id": ev["scheme"]["id"],
+                        "eligible": ev["is_eligible"],
+                        "reasons_passed": [r["label_en"] for r in ev.get("passed_rules", [])],
+                        "reasons_failed": [r["label_en"] for r in ev.get("failed_rules", [])],
+                        "match_score": ev.get("match_score", 0),
+                        "emi_estimate": ev.get("capped_loan_amount", 0),
+                    })
+                db.insert_recommendations(recs_to_insert)
+        except Exception as e:
+            print(f"[Supabase] submit_application persistence failed, using in-memory: {e}")
+
+    # --- Always maintain in-memory record for WebSocket broadcast ---
+    app_id = supabase_applicant_id or f"APP-2026-{len(APPLICANTS_DB) + 8806}"
     new_record = {
-        "id": app_id,
+        "id": str(app_id),
         "name": data.name,
         "age": 30,
         "gender": data.gender,
@@ -225,40 +324,42 @@ async def submit_application(data: SubmitApplicationInput):
         "created_at": datetime.datetime.utcnow().isoformat() + "Z",
         "documents_uploaded": 1,
         "documents_total": 4,
-        "stuck_alert": False
+        "stuck_alert": False,
     }
     APPLICANTS_DB.insert(0, new_record)
 
-    # Notify connected websocket clients (Admin Dashboard)
     for ws in connected_websockets:
         try:
             await ws.send_json({"type": "NEW_APPLICATION", "data": new_record})
         except:
             pass
 
-    return {"status": "SUCCESS", "application_id": app_id, "record": new_record}
+    return {"status": "SUCCESS", "application_id": str(app_id), "record": new_record}
 
 @app.get("/api/admin/metrics")
 def get_admin_metrics():
+    if _USE_SUPABASE:
+        try:
+            return db.get_admin_metrics()
+        except Exception as e:
+            print(f"[Supabase] get_admin_metrics failed, falling back: {e}")
+
+    # In-memory fallback
     total_apps = len(APPLICANTS_DB)
     status_counts = {}
     for a in APPLICANTS_DB:
         s = a.get("status", "New")
         status_counts[s] = status_counts.get(s, 0) + 1
-
     scheme_uptake = {}
     for a in APPLICANTS_DB:
         sc = a.get("matched_scheme_id", "SCH_MCS")
         scheme_uptake[sc] = scheme_uptake.get(sc, 0) + 1
-
     state_distribution = {}
     for a in APPLICANTS_DB:
         st = a.get("state", "Uttar Pradesh")
         state_distribution[st] = state_distribution.get(st, 0) + 1
-
     total_requested_capital = sum(a.get("loan_amount_requested", 0) for a in APPLICANTS_DB)
     stuck_cases_count = sum(1 for a in APPLICANTS_DB if a.get("stuck_alert", False))
-
     return {
         "total_applicants": total_apps,
         "status_breakdown": status_counts,
@@ -267,11 +368,40 @@ def get_admin_metrics():
         "total_requested_capital_inr": total_requested_capital,
         "avg_match_time_seconds": 1.4,
         "stuck_cases_count": stuck_cases_count,
-        "active_channel_partners_count": len(SYNTHETIC_CHANNEL_PARTNERS)
+        "active_channel_partners_count": len(SYNTHETIC_CHANNEL_PARTNERS),
     }
 
 @app.get("/api/admin/applicants")
 def get_admin_applicants(status: Optional[str] = None, state: Optional[str] = None):
+    if _USE_SUPABASE:
+        try:
+            rows = db.fetch_applicants(status_filter=status, state_filter=state)
+            # Normalise Supabase column names to match what the frontend expects
+            normalised = []
+            for r in rows:
+                normalised.append({
+                    "id": str(r.get("applicant_id", "")),
+                    "name": r.get("name", ""),
+                    "age": r.get("age"),
+                    "gender": r.get("gender", ""),
+                    "category": r.get("caste_category", ""),
+                    "annual_income": r.get("annual_income", 0),
+                    "district": (r.get("state_district") or "").split(",")[0].strip(),
+                    "state": (r.get("state_district") or "").split(",")[-1].strip(),
+                    "business_type": r.get("business_sector", ""),
+                    "loan_amount_requested": r.get("loan_needed", 0),
+                    "matched_scheme_id": "",  # fetched separately via recommendations
+                    "matched_partner_id": "",
+                    "status": r.get("status", "New"),
+                    "stuck_alert": r.get("status") == "Pending Documents",
+                    "created_at": str(r.get("created_at", "")),
+                    "intake_transcript": r.get("nlp_intake_text", ""),
+                    "detected_language": r.get("detected_language", "en-IN"),
+                })
+            return {"applicants": normalised, "count": len(normalised)}
+        except Exception as e:
+            print(f"[Supabase] fetch_applicants failed, falling back: {e}")
+
     results = APPLICANTS_DB
     if status and status != "All":
         results = [a for a in results if a.get("status") == status]
@@ -281,30 +411,169 @@ def get_admin_applicants(status: Optional[str] = None, state: Optional[str] = No
 
 @app.post("/api/admin/applicant-status")
 async def update_applicant_status(data: StatusUpdateInput):
+    if _USE_SUPABASE:
+        try:
+            updated = db.update_applicant_status(data.applicant_id, data.new_status)
+            if updated:
+                for ws in connected_websockets:
+                    try:
+                        await ws.send_json({"type": "STATUS_UPDATED", "data": updated})
+                    except:
+                        pass
+                return {"status": "SUCCESS", "updated_record": updated}
+        except Exception as e:
+            print(f"[Supabase] update_applicant_status failed, falling back: {e}")
+
+    # In-memory fallback
     found = False
     updated_rec = None
     for a in APPLICANTS_DB:
         if a["id"] == data.applicant_id:
             a["status"] = data.new_status
-            if data.new_status == "Pending Docs":
-                a["stuck_alert"] = True
-            elif data.new_status in ["Disbursed", "Matched"]:
-                a["stuck_alert"] = False
+            a["stuck_alert"] = data.new_status == "Pending Docs"
             found = True
             updated_rec = a
             break
-
     if not found:
         raise HTTPException(status_code=404, detail="Applicant ID not found")
-
-    # Broadcast via WS
     for ws in connected_websockets:
         try:
             await ws.send_json({"type": "STATUS_UPDATED", "data": updated_rec})
         except:
             pass
-
     return {"status": "SUCCESS", "updated_record": updated_rec}
+
+# ---------------------------------------------------------------------------
+# Sarvam AI — Pydantic schemas
+# ---------------------------------------------------------------------------
+
+class SarvamExtractInput(BaseModel):
+    transcript: str
+
+class SarvamTranslateInput(BaseModel):
+    text: str
+    target_language_code: str = "en-IN"
+    source_language_code: Optional[str] = None
+
+class SarvamTtsInput(BaseModel):
+    text: str
+    target_language_code: str = "hi-IN"
+
+class SarvamLidInput(BaseModel):
+    text: str
+
+# ---------------------------------------------------------------------------
+# Sarvam AI — Routes
+# ---------------------------------------------------------------------------
+
+@app.post("/api/sarvam/stt")
+async def sarvam_speech_to_text(
+    file: UploadFile = File(...),
+    filename: str = Form(default="audio.webm"),
+):
+    """
+    Speech-to-Text via Sarvam saaras:v3.
+    Accepts a raw audio blob (webm/wav/mp3) uploaded as multipart/form-data.
+    Returns the transcript and detected language code.
+    Falls back gracefully if SARVAM_API_KEY is absent or the call fails.
+    """
+    audio_bytes = await file.read()
+    result = await transcribe_audio(audio_bytes, filename=file.filename or filename)
+    if not result["success"]:
+        # Graceful degradation — caller falls back to manual text entry
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "message": "Speech-to-text service temporarily unavailable. Please type your query.",
+                "error": result.get("error", "unknown"),
+            },
+        )
+    return {
+        "transcript": result["transcript"],
+        "language_code": result["language_code"],
+    }
+
+
+@app.post("/api/sarvam/lid")
+async def sarvam_language_identify(body: SarvamLidInput):
+    """
+    Language Identification via Sarvam /text-lid.
+    Detects which of the 6 supported languages the text is in.
+    Used to auto-set the UI language and choose the TTS language for playback.
+    """
+    result = await detect_language(body.text)
+    return {
+        "language_code": result["language_code"],
+        "lang_short": result["lang_short"],
+        "success": result["success"],
+    }
+
+
+@app.post("/api/sarvam/extract")
+async def sarvam_extract_profile(body: SarvamExtractInput):
+    """
+    Structured field extraction via Sarvam chat/completions (sarvam-m model).
+    Takes the voice transcript or typed input and returns only non-null
+    structured fields for pre-populating the intake form.
+
+    IMPORTANT: This output populates the UI form only.
+    The eligibility decision is made solely by the deterministic rules engine.
+    """
+    result = await extract_profile_from_text(body.transcript)
+    return {
+        "extracted_profile": result["extracted_profile"],
+        "confidence_note": result["confidence_note"],
+        "success": result["success"],
+    }
+
+
+@app.post("/api/sarvam/translate")
+async def sarvam_translate(body: SarvamTranslateInput):
+    """
+    Translation via Sarvam /translate.
+    Used to normalise applicant input to English for the NSFDC admin dashboard
+    while preserving the original language version for auditability.
+    """
+    result = await translate_text(
+        text=body.text,
+        target_language_code=body.target_language_code,
+        source_language_code=body.source_language_code,
+    )
+    return {
+        "translated_text": result["translated_text"],
+        "success": result["success"],
+    }
+
+
+@app.post("/api/sarvam/tts")
+async def sarvam_text_to_speech(body: SarvamTtsInput):
+    """
+    Text-to-Speech via Sarvam Bulbul model.
+    Returns base64-encoded audio (WAV) — the frontend decodes and plays it.
+    Designed for the low-literacy user persona to hear their scheme eligibility
+    explanation rather than having to read it.
+    """
+    result = await text_to_speech(
+        text=body.text,
+        target_language_code=body.target_language_code,
+    )
+    if not result["success"]:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "message": "Text-to-speech service temporarily unavailable.",
+                "error": result.get("error", "unknown"),
+            },
+        )
+    return {
+        "audio_base64": result["audio_base64"],
+        "target_language_code": body.target_language_code,
+    }
+
+
+# ---------------------------------------------------------------------------
+# WebSocket — Admin Dashboard live feed
+# ---------------------------------------------------------------------------
 
 @app.websocket("/ws/admin")
 async def websocket_endpoint(websocket: WebSocket):
