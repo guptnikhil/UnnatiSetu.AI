@@ -399,8 +399,8 @@ def get_admin_applicants(status: Optional[str] = None, state: Optional[str] = No
                     "loan_amount_requested": r.get("loan_needed", 0),
                     "matched_scheme_id": "",  # fetched separately via recommendations
                     "matched_partner_id": "",
-                    "status": r.get("status", "New"),
-                    "stuck_alert": r.get("status") == "Pending Documents",
+                    "status": r.get("status", "New").replace("Pending Documents", "Pending Docs"),
+                    "stuck_alert": r.get("status") in ("Pending Documents", "Pending Docs"),
                     "created_at": str(r.get("created_at", "")),
                     "intake_transcript": r.get("nlp_intake_text", ""),
                     "detected_language": r.get("detected_language", "en-IN"),

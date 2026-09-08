@@ -146,8 +146,8 @@ export default function AdminDashboard() {
                 loan_amount_requested: r.loan_needed || 0,
                 matched_scheme_id: '',
                 matched_partner_id: '',
-                status: r.status || 'New',
-                stuck_alert: r.status === 'Pending Documents',
+                status: (r.status || 'New').replace('Pending Documents', 'Pending Docs'),
+                stuck_alert: r.status === 'Pending Documents' || r.status === 'Pending Docs',
                 created_at: r.created_at,
                 intake_transcript: r.nlp_intake_text || '',
                 detected_language: r.detected_language || 'en-IN',
@@ -160,7 +160,7 @@ export default function AdminDashboard() {
               const r = payload.new;
               setApplicants(prev => prev.map(a =>
                 a.id === r.applicant_id
-                  ? { ...a, status: r.status, stuck_alert: r.status === 'Pending Documents' }
+                  ? { ...a, status: (r.status || '').replace('Pending Documents', 'Pending Docs'), stuck_alert: r.status === 'Pending Documents' || r.status === 'Pending Docs' }
                   : a
               ));
             }
