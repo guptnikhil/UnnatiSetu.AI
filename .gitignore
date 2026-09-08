@@ -15,6 +15,9 @@ env/
 .env
 
 # Secrets — NEVER commit real keys
+.env
+.env.*
+!.env.example
 backend/.env
 frontend/.env
 

@@ -1,18 +1,99 @@
-import React from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
-import { MapPin, Building2, Phone, CheckCircle2, ShieldCheck, Clock, ArrowRight, Activity } from 'lucide-react';
+import { MapPin, Building2, Phone, CheckCircle2, ShieldCheck, Clock, ArrowRight, Activity, Navigation } from 'lucide-react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+
+const STATE_COORDINATES = {
+  'Uttar Pradesh': [26.8467, 80.9462],
+  'Maharashtra': [19.0760, 72.8777],
+  'Bihar': [25.6093, 85.1376],
+  'Delhi': [28.6315, 77.2167],
+  'Madhya Pradesh': [23.2599, 77.4126],
+  'Rajasthan': [26.9124, 75.7873],
+  'West Bengal': [22.5726, 88.3639],
+  'Tamil Nadu': [13.0827, 80.2707],
+};
+
+function createMarkerIcon(isSelected, rank) {
+  const size = isSelected ? 18 : 12;
+  const color = isSelected ? '#f59e0b' : '#d97706';
+  const ring = isSelected
+    ? `<div style="position:absolute;inset:-8px;border-radius:50%;border:2px solid rgba(245,158,11,0.5);animation:marker-pulse 1.5s ease-out infinite"></div>`
+    : '';
+  const label = rank != null
+    ? `<div style="position:absolute;top:-8px;right:-8px;width:18px;height:18px;border-radius:50%;background:#f59e0b;color:#0f172a;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.3)">${rank}</div>`
+    : '';
+
+  return L.divIcon({
+    className: '',
+    iconSize: [size * 2 + 16, size * 2 + 16],
+    iconAnchor: [size + 8, size + 8],
+    popupAnchor: [0, -(size + 8)],
+    html: `<div style="position:relative;width:${size * 2 + 16}px;height:${size * 2 + 16}px;display:flex;align-items:center;justify-content:center">
+      ${ring}
+      <div style="width:${size * 2}px;height:${size * 2}px;border-radius:50%;background:${color};border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.3);transition:all 0.3s ease"></div>
+      ${label}
+    </div>`,
+  });
+}
+
+function createApplicantIcon() {
+  return L.divIcon({
+    className: '',
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+    popupAnchor: [0, -16],
+    html: `<div style="position:relative;width:32px;height:32px;display:flex;align-items:center;justify-content:center">
+      <div style="position:absolute;inset:-4px;border-radius:50%;border:2px solid rgba(59,130,246,0.4);animation:marker-pulse 2s ease-out infinite"></div>
+      <div style="width:16px;height:16px;border-radius:50%;background:#3b82f6;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.3)"></div>
+    </div>`,
+  });
+}
+
+function FlyToPartner({ partner }) {
+  const map = useMap();
+  const prevRef = useRef(null);
+
+  useEffect(() => {
+    if (partner && partner.lat && partner.lng && prevRef.current !== partner.id) {
+      prevRef.current = partner.id;
+      map.flyTo([partner.lat, partner.lng], 10, { duration: 1.2 });
+    }
+  }, [partner, map]);
+
+  return null;
+}
 
 export default function PartnerLocator() {
-  const { rankedPartners, selectedPartner, setSelectedPartner, setCurrentStep, t, lang, theme, selectedScheme } = useApp();
+  const { rankedPartners, selectedPartner, setSelectedPartner, setCurrentStep, t, lang, theme, selectedScheme, applicantProfile } = useApp();
 
   const handleSelectPartner = (partner) => {
     setSelectedPartner(partner);
     setCurrentStep(5);
   };
 
+  const center = useMemo(() => {
+    const state = applicantProfile?.state;
+    if (state && STATE_COORDINATES[state]) return STATE_COORDINATES[state];
+    if (rankedPartners.length > 0) {
+      const p = rankedPartners[0].partner;
+      return [p.lat, p.lng];
+    }
+    return [26.8467, 80.9462];
+  }, [applicantProfile, rankedPartners]);
+
+  const applicantPos = useMemo(() => {
+    const state = applicantProfile?.state;
+    return STATE_COORDINATES[state] || null;
+  }, [applicantProfile]);
+
+  const darkTiles = theme !== 'light';
+
   return (
     <div className="space-y-6">
-      
+
       {/* Title */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
@@ -23,13 +104,13 @@ export default function PartnerLocator() {
             {t.partnerHeader}
           </h2>
           <p className={`text-xs mt-1 ${theme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>
-            Partners ranked on <span className="text-amber-600 dark:text-amber-400 font-bold">Eligibility Fit</span>, <span className="text-emerald-600 dark:text-emerald-400 font-bold">Processing Capacity</span>, and <span className="text-sky-600 dark:text-sky-400 font-bold">Geo Proximity</span> (not just distance).
+            Partners ranked on <span className="text-amber-600 dark:text-amber-400 font-bold">Eligibility Fit</span>, <span className="text-emerald-600 dark:text-emerald-400 font-bold">Processing Capacity</span>, and <span className="text-sky-600 dark:text-sky-400 font-bold">Geo Proximity</span>.
           </p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
+
         {/* Left Column: Ranked Partner List */}
         <div className="lg:col-span-7 space-y-4">
           {rankedPartners.map((item, idx) => {
@@ -139,7 +220,7 @@ export default function PartnerLocator() {
           })}
         </div>
 
-        {/* Right Column: Geo Map Preview Card */}
+        {/* Right Column: Interactive Map */}
         <div className="lg:col-span-5 space-y-4">
           <div className={`glass-panel rounded-2xl p-5 border space-y-4 sticky top-24 ${
             theme === 'light' ? 'border-slate-200 bg-white' : 'border-slate-800'
@@ -147,48 +228,112 @@ export default function PartnerLocator() {
             <h3 className={`text-sm font-bold font-outfit flex items-center gap-2 ${
               theme === 'light' ? 'text-slate-900' : 'text-white'
             }`}>
-              <MapPin className="w-4 h-4 text-amber-500" />
-              Geo-Spatial Regional Distribution
+              <Navigation className="w-4 h-4 text-amber-500" />
+              Interactive Partner Map
             </h3>
 
-            {/* Visual Simulated Map Graphic */}
-            <div className={`relative w-full h-64 rounded-xl overflow-hidden border flex items-center justify-center p-4 ${
-              theme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-slate-950 border-slate-800'
+            {/* Real Leaflet Map */}
+            <div className={`relative w-full h-[400px] rounded-xl overflow-hidden border ${
+              theme === 'light' ? 'border-slate-200' : 'border-slate-800'
             }`}>
-              <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#f59e0b_1px,transparent_1px)] [background-size:16px_16px]" />
-              
-              {/* Map Pins Visualization */}
-              <div className="relative z-10 w-full h-full flex flex-col justify-between">
-                <div className={`border p-2.5 rounded-lg text-[11px] ${
-                  theme === 'light' ? 'bg-white border-slate-300 text-slate-800' : 'bg-slate-900/90 border-slate-700/80 text-slate-300'
-                }`}>
-                  📍 Regional Focus: <span className="font-bold text-amber-600 dark:text-amber-400">Uttar Pradesh / State SCA Hub</span>
-                </div>
+              <style>{`
+                @keyframes marker-pulse {
+                  0% { transform: scale(1); opacity: 0.6; }
+                  100% { transform: scale(2.2); opacity: 0; }
+                }
+                .leaflet-popup-content-wrapper {
+                  border-radius: 12px !important;
+                  box-shadow: 0 8px 24px rgba(0,0,0,0.2) !important;
+                }
+                .leaflet-popup-content {
+                  margin: 12px 16px !important;
+                  font-family: 'Plus Jakarta Sans', sans-serif !important;
+                }
+                .dark-tiles {
+                  filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+                }
+              `}</style>
+              <MapContainer
+                center={center}
+                zoom={6}
+                className="w-full h-full z-0"
+                scrollWheelZoom={true}
+                zoomControl={true}
+              >
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  className={darkTiles ? 'dark-tiles' : ''}
+                />
 
-                <div className="grid grid-cols-2 gap-2 my-auto">
-                  {rankedPartners.slice(0, 4).map((p, i) => (
-                    <div
-                      key={p.partner.id}
-                      onClick={() => setSelectedPartner(p.partner)}
-                      className={`p-2 rounded-lg border text-[11px] cursor-pointer transition-all ${
-                        selectedPartner?.id === p.partner.id
-                          ? 'bg-amber-500/20 border-amber-500 text-amber-700 dark:text-amber-300'
-                          : theme === 'light'
-                          ? 'bg-white border-slate-200 text-slate-700 hover:border-slate-400'
-                          : 'bg-slate-900/80 border-slate-800 text-slate-300 hover:border-slate-700'
-                      }`}
-                    >
-                      <div className="font-bold truncate">{p.partner.name}</div>
-                      <div className={`text-[10px] ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
-                        {p.distance_km} km • Score {p.rank_score}
+                <FlyToPartner partner={selectedPartner} />
+
+                {/* Applicant location marker */}
+                {applicantPos && (
+                  <Marker position={applicantPos} icon={createApplicantIcon()}>
+                    <Popup>
+                      <div style={{ minWidth: 140 }}>
+                        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4, color: '#3b82f6' }}>Your Location</div>
+                        <div style={{ fontSize: 12, color: '#64748b' }}>{applicantProfile?.district}, {applicantProfile?.state}</div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    </Popup>
+                  </Marker>
+                )}
 
-                <div className={`text-[10px] text-center ${theme === 'light' ? 'text-slate-500' : 'text-slate-500'}`}>
-                  * Dynamic Leaflet / OpenStreetMap Geo Coordinates Enabled
-                </div>
+                {/* Partner markers */}
+                {rankedPartners.map((item, idx) => {
+                  const p = item.partner;
+                  const isSelected = selectedPartner?.id === p.id;
+                  return (
+                    <Marker
+                      key={p.id}
+                      position={[p.lat, p.lng]}
+                      icon={createMarkerIcon(isSelected, idx + 1)}
+                      eventHandlers={{
+                        click: () => setSelectedPartner(p),
+                      }}
+                    >
+                      <Popup>
+                        <div style={{ minWidth: 180 }}>
+                          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>{p.name}</div>
+                          <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6 }}>{p.address}</div>
+                          <div style={{ display: 'flex', gap: 8, fontSize: 11, marginBottom: 8 }}>
+                            <span style={{ color: '#f59e0b', fontWeight: 600 }}>{item.distance_km} km</span>
+                            <span style={{ color: '#10b981', fontWeight: 600 }}>Score: {item.rank_score}</span>
+                          </div>
+                          <button
+                            onClick={() => handleSelectPartner(p)}
+                            style={{
+                              width: '100%', padding: '6px 0', borderRadius: 8, border: 'none',
+                              background: '#f59e0b', color: '#0f172a', fontWeight: 700, fontSize: 12,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Select Partner →
+                          </button>
+                        </div>
+                      </Popup>
+                    </Marker>
+                  );
+                })}
+              </MapContainer>
+            </div>
+
+            {/* Legend */}
+            <div className={`flex items-center gap-4 text-[11px] ${
+              theme === 'light' ? 'text-slate-500' : 'text-slate-400'
+            }`}>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded-full bg-blue-500 border-2 border-white shadow-sm" />
+                <span>Your Location</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded-full bg-amber-500 border-2 border-white shadow-sm" />
+                <span>Channel Partner</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded-full bg-amber-600 border-2 border-white shadow-sm ring-2 ring-amber-500/40" />
+                <span>Selected</span>
               </div>
             </div>
 
@@ -196,7 +341,10 @@ export default function PartnerLocator() {
               <div className={`p-3.5 rounded-xl border text-xs space-y-2 ${
                 theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-slate-900 border-slate-800'
               }`}>
-                <div className="text-amber-600 dark:text-amber-400 font-bold">Selected Channel Partner:</div>
+                <div className="text-amber-600 dark:text-amber-400 font-bold flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Selected Channel Partner:
+                </div>
                 <div className={`font-medium ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>{selectedPartner.name}</div>
                 <div className={theme === 'light' ? 'text-slate-600' : 'text-slate-400'}>{selectedPartner.address}</div>
                 <div className="text-emerald-600 dark:text-emerald-400 font-semibold">{selectedPartner.capacity_label_en}</div>

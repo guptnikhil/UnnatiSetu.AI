@@ -32,10 +32,13 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Enable CORS for local React dev server
+# Enable CORS — restricted in production via FRONTEND_URL env var
+_frontend_url = os.environ.get("FRONTEND_URL", "")
+_allowed_origins = [_frontend_url] if _frontend_url else ["http://localhost:3000", "http://localhost:3001", "http://localhost:3002"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

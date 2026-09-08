@@ -119,3 +119,35 @@
 .light ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* Voice Agent Overlay Animations */
+@keyframes voice-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes voice-orb-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+@keyframes voice-ring-expand {
+  0% { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(2); opacity: 0; }
+}
+
+.voice-orb-ring {
+  animation: voice-ring-expand 2s ease-out infinite;
+}
+
+.voice-orb-ring-2 {
+  animation: voice-ring-expand 2s ease-out 0.6s infinite;
+}
+
+.voice-orb-glow {
+  box-shadow: 0 0 80px rgba(245, 158, 11, 0.4), 0 0 160px rgba(245, 158, 11, 0.2);
+}
+
+.light .voice-orb-glow {
+  box-shadow: 0 0 60px rgba(245, 158, 11, 0.3), 0 0 120px rgba(245, 158, 11, 0.15);
+}

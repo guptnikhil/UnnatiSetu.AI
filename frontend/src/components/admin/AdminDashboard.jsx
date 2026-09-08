@@ -3,6 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/SupabaseAuthContext';
 import { Users, CheckCircle, Clock, Building2, AlertTriangle, Search, RefreshCw, Layers, Languages, ChevronDown, ChevronUp, LogOut, UserCircle } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell } from 'recharts';
+import { apiUrl } from '../../services/api';
 import { translateText } from '../../services/sarvam';
 
 /**
@@ -72,7 +73,7 @@ export default function AdminDashboard() {
     setLoading(true);
     try {
       // Fetch KPI metrics
-      const metricsRes = await fetch('/api/admin/metrics');
+      const metricsRes = await fetch(apiUrl('/api/admin/metrics'));
       const metricsData = await metricsRes.json();
       setMetrics(metricsData);
 
@@ -81,7 +82,7 @@ export default function AdminDashboard() {
       if (statusFilter !== "All") query.append("status", statusFilter);
       if (stateFilter !== "All") query.append("state", stateFilter);
       
-      const appRes = await fetch(`/api/admin/applicants?${query.toString()}`);
+      const appRes = await fetch(apiUrl(`/api/admin/applicants?${query.toString()}`));
       const appData = await appRes.json();
       setApplicants(appData.applicants || []);
     } catch (err) {
@@ -173,7 +174,7 @@ export default function AdminDashboard() {
 
   const handleStatusUpdate = async (appId, newStatus) => {
     try {
-      await fetch('/api/admin/applicant-status', {
+      await fetch(apiUrl('/api/admin/applicant-status'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ applicant_id: appId, new_status: newStatus })

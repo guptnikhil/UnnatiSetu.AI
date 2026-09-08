@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { extractProfile as sarvamExtractProfile, detectLanguage as sarvamDetectLanguage } from '../services/sarvam';
+import { apiUrl } from '../services/api';
 
 const AppContext = createContext();
 
@@ -34,6 +35,12 @@ export const TRANSLATIONS = {
     intakePlaceholder: "e.g., I am Ramesh from Lucknow. I want a loan of ₹1,00,000 to open a small grocery retail shop.",
     voiceBtnRecord: "Click to Speak (Voice Input)",
     voiceBtnStop: "Listening...",
+    voiceListening: "Listening...",
+    voiceProcessing: "Processing...",
+    voiceTapToStop: "Tap anywhere to stop",
+    voiceAutoStopping: "Auto-stopping in",
+    voiceNoSpeech: "No speech detected",
+    voiceProfileUpdated: "Profile updated!",
     extractHeader: "Live Extracted Applicant Profile",
     btnEvaluate: "Evaluate Eligibility & Match Schemes",
     matchingResults: "Eligible Concessional Schemes",
@@ -88,6 +95,12 @@ export const TRANSLATIONS = {
     intakePlaceholder: "उदा. मैं लखनऊ का रमेश हूं। मैं किराना दुकान खोलने के लिए ₹1,00,000 का ऋण चाहता हूं।",
     voiceBtnRecord: "बोलने के लिए क्लिक करें (आवाज इनपुट)",
     voiceBtnStop: "सुन रहा हूँ...",
+    voiceListening: "सुन रहा हूँ...",
+    voiceProcessing: "प्रोसेस हो रहा है...",
+    voiceTapToStop: "रोकने के लिए कहीं भी टैप करें",
+    voiceAutoStopping: "स्वतः रुक रहा है",
+    voiceNoSpeech: "कोई आवाज़ नहीं मिली",
+    voiceProfileUpdated: "प्रोफ़ाइल अपडेट हो गई!",
     extractHeader: "लाइव निकाला गया आवेदक प्रोफ़ाइल",
     btnEvaluate: "पात्रता का मूल्यांकन करें और योजनाएं मिलाएं",
     matchingResults: "पात्र रियायती योजनाएं",
@@ -142,6 +155,12 @@ export const TRANSLATIONS = {
     intakePlaceholder: "যেমন: আমি লখনউয়ের রমেশ। একটি মুদি দোকান খোলার জন্য আমার ₹১,০০,০০০ ঋণ প্রয়োজন।",
     voiceBtnRecord: "কথা বলতে ক্লিক করুন (ভয়েস ইনপুট)",
     voiceBtnStop: "শুনছি...",
+    voiceListening: "শুনছি...",
+    voiceProcessing: "প্রক্রিয়া হচ্ছে...",
+    voiceTapToStop: "থামাতে যেকোনো জায়গায় ট্যাপ করুন",
+    voiceAutoStopping: "স্বয়ংক্রিয়ভাবে থামছে",
+    voiceNoSpeech: "কোনো কথা শনাক্ত হয়নি",
+    voiceProfileUpdated: "প্রোফাইল আপডেট হয়েছে!",
     extractHeader: "লাইভ এক্সট্র্যাক্ট করা প্রোফাইল",
     btnEvaluate: "যোগ্যতা মূল্যায়ন ও স্কিম ম্যাচ করুন",
     matchingResults: "যোগ্য সুবিধাজনক ঋণ স্কিম",
@@ -196,6 +215,12 @@ export const TRANSLATIONS = {
     intakePlaceholder: "उदा: मी लखनौचा रमेश आहे. किराणा दुकान सुरू करण्यासाठी मला ₹१,००,००० कर्जाची गरज आहे.",
     voiceBtnRecord: "बोलण्यासाठी क्लिक करा (आवाज इनपुट)",
     voiceBtnStop: "ऐकत आहे...",
+    voiceListening: "ऐकत आहे...",
+    voiceProcessing: "प्रक्रिया होत आहे...",
+    voiceTapToStop: "थांबवण्यासाठी कुठेही टॅप करा",
+    voiceAutoStopping: "स्वयंचलित थांबत आहे",
+    voiceNoSpeech: "कोणताही आवाज आढळला नाही",
+    voiceProfileUpdated: "प्रोफाइल अपडेट झाली!",
     extractHeader: "थेट काढलेली अर्जदार प्रोफाइल",
     btnEvaluate: "पात्रता तपासा आणि योजना जुळवा",
     matchingResults: "पात्र सवलतीच्या योजना",
@@ -250,6 +275,12 @@ export const TRANSLATIONS = {
     intakePlaceholder: "ఉదా: నేను లక్నో నుండి రమేష్. కిరాణా దుకాణం తెరవడానికి నాకు ₹1,00,000 రుణం కావాలి.",
     voiceBtnRecord: "మాట్లాడటానికి క్లిక్ చేయండి (వాయిస్ ఇన్‌పుట్)",
     voiceBtnStop: "వింటోంది...",
+    voiceListening: "వింటోంది...",
+    voiceProcessing: "ప్రాసెస్ అవుతోంది...",
+    voiceTapToStop: "ఆపడానికి ఎక్కడైనా ట్యాప్ చేయండి",
+    voiceAutoStopping: "స్వయంచాలకంగా ఆగుతోంది",
+    voiceNoSpeech: "ఎటువంటి మాట గుర్తించబడలేదు",
+    voiceProfileUpdated: "ప్రొఫైల్ నవీకరించబడింది!",
     extractHeader: "లైవ్ సేకరించిన ప్రొఫైల్",
     btnEvaluate: "అర్హతను పరిశీలించి పథకాలను సరిపోల్చండి",
     matchingResults: "అర్హతగల రాయితీ పథకాలు",
@@ -304,6 +335,12 @@ export const TRANSLATIONS = {
     intakePlaceholder: "எ.கா: நான் லக்னோவைச் சேர்ந்த ரமேஷ். மளிகைக் கடை தொடங்க எனக்கு ₹1,00,000 கடன் தேவை.",
     voiceBtnRecord: "பேச கிளிக் செய்யவும் (குரல் பதிவு)",
     voiceBtnStop: "கேட்கிறது...",
+    voiceListening: "கேட்கிறது...",
+    voiceProcessing: "செயலாக்கப்படுகிறது...",
+    voiceTapToStop: "நிறுத்த எங்கும் தட்டவும்",
+    voiceAutoStopping: "தானாக நிறுத்தப்படுகிறது",
+    voiceNoSpeech: "பேச்சு கண்டறியப்படவில்லை",
+    voiceProfileUpdated: "சுயவிவரம் புதுப்பிக்கப்பட்டது!",
     extractHeader: "நேரலையில் பிரித்தெடுக்கப்பட்ட சுயவிவரம்",
     btnEvaluate: "தகுதியை மதிப்பிட்டு திட்டங்களை பொருத்தவும்",
     matchingResults: "தகுதியான மானியக் கடன் திட்டங்கள்",
@@ -415,7 +452,7 @@ export const AppProvider = ({ children }) => {
 
     // Fallback: existing rule-based NLP parser
     try {
-      const res = await fetch('/api/nlp/parse', {
+      const res = await fetch(apiUrl('/api/nlp/parse'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text_prompt: transcript }),
@@ -449,7 +486,7 @@ export const AppProvider = ({ children }) => {
   const evaluateSchemes = async (profile = applicantProfile) => {
     setLoading(true);
     try {
-      const res = await fetch('/api/recommend', {
+      const res = await fetch(apiUrl('/api/recommend'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(profile)
@@ -513,7 +550,7 @@ export const AppProvider = ({ children }) => {
 
   const calculateEmi = async (loanAmount, interestRate, tenure, moratorium, monthlyIncome) => {
     try {
-      const res = await fetch('/api/calculate-emi', {
+      const res = await fetch(apiUrl('/api/calculate-emi'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -552,7 +589,7 @@ export const AppProvider = ({ children }) => {
 
   const fetchPartners = async (state, district, targetSchemeId) => {
     try {
-      const res = await fetch('/api/rank-partners', {
+      const res = await fetch(apiUrl('/api/rank-partners'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ state, district, target_scheme_id: targetSchemeId })

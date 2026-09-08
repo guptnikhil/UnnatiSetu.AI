@@ -1,7 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Mic, MicOff, Sparkles, Send, User, MapPin, Briefcase, IndianRupee, Layers, CheckCircle2, Loader2 } from 'lucide-react';
-import { speechToText } from '../../services/sarvam';
+import { Mic, Sparkles, Send, User, MapPin, Briefcase, IndianRupee, Layers, CheckCircle2, Loader2 } from 'lucide-react';
+import VoiceAgentOverlay from './VoiceAgentOverlay';
 
 export default function ConversationalIntake() {
   const { 
@@ -10,11 +10,8 @@ export default function ConversationalIntake() {
   } = useApp();
   
   const [inputText, setInputText] = useState("");
-  const [isRecording, setIsRecording] = useState(false);
+  const [isVoiceOpen, setIsVoiceOpen] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
-  
-  const mediaRecorderRef = useRef(null);
-  const audioChunksRef = useRef([]);
 
   const samplePersonas = [
     {
@@ -73,67 +70,6 @@ export default function ConversationalIntake() {
   const handleApplyPersona = (p) => {
     setApplicantProfile(p.profile);
     setInputText(p.text);
-  };
-
-  /**
-   * Real voice recording with MediaRecorder → Sarvam STT → LID → extraction
-   */
-  const handleVoiceToggle = async () => {
-    if (!isRecording) {
-      // Start recording
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
-        const recorder = new MediaRecorder(stream, { mimeType });
-        
-        audioChunksRef.current = [];
-        
-        recorder.ondataavailable = (e) => {
-          if (e.data.size > 0) audioChunksRef.current.push(e.data);
-        };
-        
-        recorder.onstop = async () => {
-          stream.getTracks().forEach(track => track.stop());
-          
-          const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
-          setIsTranscribing(true);
-          
-          // Call Sarvam STT
-          const sttResult = await speechToText(audioBlob, mimeType);
-          
-          if (sttResult.success && sttResult.transcript) {
-            setInputText(sttResult.transcript);
-            
-            // Auto-detect language and switch UI
-            await detectAndSetLanguage(sttResult.transcript);
-            
-            // Extract structured fields
-            const extracted = await extractProfileSarvam(sttResult.transcript);
-            if (Object.keys(extracted).length > 0) {
-              setApplicantProfile(prev => ({ ...prev, ...extracted }));
-            }
-          } else {
-            // Graceful degradation — user can type instead
-            console.warn('[Voice] STT unavailable — please type your query');
-          }
-          
-          setIsTranscribing(false);
-        };
-        
-        recorder.start();
-        mediaRecorderRef.current = recorder;
-        setIsRecording(true);
-      } catch (err) {
-        console.error('[Voice] Microphone access denied or unavailable:', err);
-        alert('Microphone access denied. Please type your query instead.');
-      }
-    } else {
-      // Stop recording
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        mediaRecorderRef.current.stop();
-      }
-      setIsRecording(false);
-    }
   };
 
   const handleNaturalLanguageParse = async () => {
@@ -220,36 +156,21 @@ export default function ConversationalIntake() {
             }`}
           />
 
-          {/* Voice Mic Overlay */}
-          <div className="absolute right-3 bottom-3 flex items-center space-x-2">
+          {/* Voice Mic Button */}
+          <div className="absolute right-3 bottom-3">
             <button
-              onClick={handleVoiceToggle}
+              onClick={() => setIsVoiceOpen(true)}
               disabled={isTranscribing}
-              className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                isRecording
-                  ? 'bg-red-500 text-white animate-pulse shadow-lg shadow-red-500/50'
-                  : isTranscribing
-                  ? 'bg-amber-500 text-white cursor-wait'
-                  : theme === 'light'
-                  ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300'
-                  : 'bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700'
+              className={`w-12 h-12 rounded-full flex items-center justify-center transition-all shadow-lg ${
+                isTranscribing
+                  ? 'bg-amber-500 cursor-wait animate-pulse shadow-amber-500/30'
+                  : 'bg-gradient-to-br from-amber-500 to-orange-500 hover:scale-110 hover:shadow-amber-500/40'
               }`}
             >
               {isTranscribing ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Transcribing...</span>
-                </>
-              ) : isRecording ? (
-                <>
-                  <MicOff className="w-4 h-4" />
-                  <span>{t.voiceBtnStop}</span>
-                </>
+                <Loader2 className="w-5 h-5 text-white animate-spin" />
               ) : (
-                <>
-                  <Mic className="w-4 h-4 text-amber-500" />
-                  <span>{t.voiceBtnRecord}</span>
-                </>
+                <Mic className="w-5 h-5 text-white" />
               )}
             </button>
           </div>
@@ -385,6 +306,23 @@ export default function ConversationalIntake() {
           </button>
         </div>
       </div>
+
+      <VoiceAgentOverlay
+        isOpen={isVoiceOpen}
+        onClose={() => setIsVoiceOpen(false)}
+        onTranscript={async (text) => {
+          setInputText(text);
+          setIsTranscribing(true);
+          await detectAndSetLanguage(text);
+          const extracted = await extractProfileSarvam(text);
+          if (Object.keys(extracted).length > 0) {
+            setApplicantProfile(prev => ({ ...prev, ...extracted }));
+          }
+          setIsTranscribing(false);
+        }}
+        theme={theme}
+        t={t}
+      />
     </div>
   );
 }

@@ -16,7 +16,9 @@
  * input, preserving the design principle of zero dead-end errors.
  */
 
-const BASE = '/api/sarvam';
+import { apiUrl } from './api';
+
+const BASE = apiUrl('/api/sarvam');
 
 // Language code map (matches AppContext SUPPORTED_LANGUAGES keys)
 export const SARVAM_LANG_CODES = {

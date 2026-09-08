@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { FileCheck, CheckSquare, Square, Download, Share2, Sparkles, Building2, ShieldCheck, IndianRupee, Printer, ArrowRight } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { apiUrl } from '../../services/api';
 
 export default function DocumentChecklist() {
   const { selectedScheme, selectedPartner, emiData, applicantProfile, t, lang, theme, setSubmittedApplication, submittedApplication } = useApp();
@@ -49,7 +50,7 @@ export default function DocumentChecklist() {
         matched_partner_id: selectedPartner?.id || "CP_UP_SCA_01"
       };
 
-      const res = await fetch('/api/applicants/submit', {
+      const res = await fetch(apiUrl('/api/applicants/submit'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
