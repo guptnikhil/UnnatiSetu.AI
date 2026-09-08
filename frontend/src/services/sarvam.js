@@ -54,13 +54,13 @@ export async function speechToText(audioBlob, mimeType = 'audio/webm') {
     const res = await fetch(`${BASE}/stt`, {
       method: 'POST',
       body: formData,
-      // No Content-Type header — browser sets multipart boundary automatically
     });
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      console.warn('[Sarvam STT] API error:', err?.detail?.message || res.statusText);
-      return { transcript: '', language_code: 'en-IN', success: false };
+      const msg = err?.detail?.message || err?.detail || res.statusText || 'STT Service Error';
+      console.warn('[Sarvam STT] API error:', msg);
+      return { transcript: '', language_code: 'en-IN', success: false, error: msg };
     }
 
     const data = await res.json();
@@ -71,7 +71,7 @@ export async function speechToText(audioBlob, mimeType = 'audio/webm') {
     };
   } catch (err) {
     console.warn('[Sarvam STT] Network error:', err.message);
-    return { transcript: '', language_code: 'en-IN', success: false };
+    return { transcript: '', language_code: 'en-IN', success: false, error: err.message };
   }
 }
 
@@ -244,6 +244,9 @@ export async function speakText(text, langCode = 'hi-IN') {
     }
 
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') {
+      await audioCtx.resume();
+    }
     const audioBuffer = await audioCtx.decodeAudioData(bytes.buffer);
 
     const source = audioCtx.createBufferSource();

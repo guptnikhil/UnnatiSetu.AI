@@ -77,13 +77,21 @@ def evaluate_applicant_eligibility(applicant_profile: Dict[str, Any]) -> List[Di
                 "label_hi": f"मांगा गया ऋण (₹{loan_amount:,.0f}) योजना की अधिकतम सीमा (₹{max_loan:,.0f}) में है",
                 "passed": True
             })
-        else:
-            # Partial pass: can still match but capped
+        elif loan_amount <= max_loan * 2.5:
+            # Partial pass: can still match but capped with score penalty
             passed_rules.append({
                 "rule_code": "RULE_LOAN_CAP_CAPPED",
-                "label_en": f"Loan requested (₹{loan_amount:,.0f}) exceeds cap (₹{max_loan:,.0f}); can be capped at ₹{max_loan:,.0f}",
-                "label_hi": f"मांगा गया ऋण योजना की सीमा (₹{max_loan:,.0f}) से अधिक है; इसे सीमित किया जा सकता है",
+                "label_en": f"Loan requested (₹{loan_amount:,.0f}) exceeds scheme cap (₹{max_loan:,.0f}); will be capped at ₹{max_loan:,.0f}",
+                "label_hi": f"मांगा गया ऋण योजना की सीमा (₹{max_loan:,.0f}) से अधिक है; इसे सीमित किया जाएगा",
                 "passed": True
+            })
+        else:
+            # Failed: requested loan is way beyond scheme capacity (> 2.5x max loan)
+            failed_rules.append({
+                "rule_code": "RULE_LOAN_CAP_EXCEEDED",
+                "label_en": f"Requested Loan (₹{loan_amount:,.0f}) far exceeds scheme maximum capacity (₹{max_loan:,.0f})",
+                "label_hi": f"मांगा गया ऋण (₹{loan_amount:,.0f}) योजना की अधिकतम क्षमता (₹{max_loan:,.0f}) से बहुत अधिक है",
+                "passed": False
             })
 
         # Rule 5: Business Type Alignment Check
@@ -107,6 +115,11 @@ def evaluate_applicant_eligibility(applicant_profile: Dict[str, Any]) -> List[Di
         total_checks = len(passed_rules) + len(failed_rules)
         match_score = int((len(passed_rules) / total_checks) * 100) if total_checks > 0 else 0
 
+        # Adjust score for capped loans
+        if loan_amount > max_loan:
+            penalty = min(30, int(((loan_amount - max_loan) / max_loan) * 20))
+            match_score = max(10, match_score - penalty)
+
         # Adjust score bonus for female-focused scheme if female
         if gender == "Female" and "Female" in scheme["gender_target"] and len(scheme["gender_target"]) == 1:
             match_score = min(100, match_score + 5)
@@ -128,3 +141,4 @@ def evaluate_applicant_eligibility(applicant_profile: Dict[str, Any]) -> List[Di
     # Sort evaluations: eligible first, then by match_score descending
     evaluations.sort(key=lambda x: (x["is_eligible"], x["match_score"]), reverse=True)
     return evaluations
+

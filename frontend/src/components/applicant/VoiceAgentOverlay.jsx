@@ -47,6 +47,14 @@ export default function VoiceAgentOverlay({ isOpen, onClose, onTranscript, theme
 
     const init = async () => {
       try {
+        if (!navigator?.mediaDevices?.getUserMedia) {
+          console.error('[VoiceAgent] navigator.mediaDevices.getUserMedia is unavailable. HTTPS or localhost required.');
+          setError('HTTPS required for voice input (navigator.mediaDevices unavailable)');
+          setState('result');
+          return;
+        }
+
+        console.log('[VoiceAgent] Requesting microphone access via getUserMedia...');
         const s = await navigator.mediaDevices.getUserMedia({ audio: true });
         if (cancelled) {
           s.getTracks().forEach(t => t.stop());
@@ -55,6 +63,7 @@ export default function VoiceAgentOverlay({ isOpen, onClose, onTranscript, theme
 
         const mime = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
         mimeTypeRef.current = mime;
+        console.log(`[VoiceAgent] MediaRecorder started with mimeType: ${mime}`);
         const recorder = new MediaRecorder(s, { mimeType: mime });
         audioChunksRef.current = [];
 
@@ -65,13 +74,17 @@ export default function VoiceAgentOverlay({ isOpen, onClose, onTranscript, theme
         recorder.onstop = async () => {
           s.getTracks().forEach(t => t.stop());
           const blob = new Blob(audioChunksRef.current, { type: mime });
+          console.log(`[VoiceAgent] Audio recorded: ${blob.size} bytes (${mime}). Sending to STT...`);
 
           const result = await speechToText(blob, mime);
+          console.log('[VoiceAgent] STT result:', result);
+
           if (result.success && result.transcript) {
             setTranscript(result.transcript);
             setState('result');
           } else {
-            setError(t.voiceNoSpeech || 'No speech detected');
+            const errDetail = result.error || t.voiceNoSpeech || 'No speech detected / STT unavailable';
+            setError(errDetail);
             setState('result');
           }
         };
@@ -82,7 +95,13 @@ export default function VoiceAgentOverlay({ isOpen, onClose, onTranscript, theme
         setState('listening');
         startTimeRef.current = Date.now();
       } catch (err) {
-        setError('Microphone access denied');
+        console.error('[VoiceAgent] getUserMedia error:', err.name, err.message, err);
+        const errMsg = err.name === 'NotAllowedError'
+          ? 'Microphone permission denied by user'
+          : err.name === 'NotFoundError'
+          ? 'No microphone found on device'
+          : `Microphone error: ${err.message || err.name}`;
+        setError(errMsg);
         setState('result');
       }
     };

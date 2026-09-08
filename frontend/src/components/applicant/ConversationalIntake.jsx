@@ -4,11 +4,11 @@ import { Mic, Sparkles, Send, User, MapPin, Briefcase, IndianRupee, Layers, Chec
 import VoiceAgentOverlay from './VoiceAgentOverlay';
 
 export default function ConversationalIntake() {
-  const { 
-    t, lang, theme, applicantProfile, setApplicantProfile, 
-    evaluateSchemes, loading, extractProfileSarvam, detectAndSetLanguage 
+  const {
+    t, lang, theme, applicantProfile, setApplicantProfile,
+    evaluateSchemes, loading, extractProfileSarvam, detectAndSetLanguage
   } = useApp();
-  
+
   const [inputText, setInputText] = useState("");
   const [isVoiceOpen, setIsVoiceOpen] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -72,31 +72,38 @@ export default function ConversationalIntake() {
     setInputText(p.text);
   };
 
-  const handleNaturalLanguageParse = async () => {
-    if (!inputText.trim()) {
-      evaluateSchemes(applicantProfile);
-      return;
-    }
-    
-    // Extract via Sarvam if text was manually typed (not already extracted by voice flow)
+  const handleTextParseExtract = async () => {
+    if (!inputText.trim()) return;
+    setIsTranscribing(true);
+    await detectAndSetLanguage(inputText);
     const extracted = await extractProfileSarvam(inputText);
-    if (Object.keys(extracted).length > 0) {
+    if (extracted && Object.keys(extracted).length > 0) {
       setApplicantProfile(prev => ({ ...prev, ...extracted }));
-      evaluateSchemes({ ...applicantProfile, ...extracted });
-    } else {
-      evaluateSchemes(applicantProfile);
     }
+    setIsTranscribing(false);
+  };
+
+  const handleEvaluate = () => {
+    console.log('[Frontend] Evaluating applicantProfile from form inputs:', applicantProfile);
+    evaluateSchemes(applicantProfile);
+  };
+
+  // Combined handler: parse NLP text (if typed) then run evaluation
+  const handleSubmit = async () => {
+    if (inputText.trim()) {
+      await handleTextParseExtract();
+    }
+    handleEvaluate();
   };
 
   return (
     <div className="space-y-6">
-      
+
       {/* Quick Personas Banner */}
-      <div className={`glass-panel rounded-2xl p-5 border shadow-xl transition-colors ${
-        theme === 'light'
+      <div className={`glass-panel rounded-2xl p-5 border shadow-xl transition-colors ${theme === 'light'
           ? 'bg-gradient-to-r from-amber-50/80 via-white to-orange-50/50 border-amber-200'
           : 'bg-gradient-to-r from-slate-900 via-slate-900 to-amber-950/20 border-slate-800'
-      }`}>
+        }`}>
         <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
           <div className="flex items-center space-x-2 text-amber-500 font-bold text-sm">
             <Sparkles className="w-4 h-4" />
@@ -111,11 +118,10 @@ export default function ConversationalIntake() {
             <button
               key={i}
               onClick={() => handleApplyPersona(p)}
-              className={`px-3.5 py-2 rounded-xl text-xs font-medium transition-all flex items-center space-x-1.5 shadow-sm border ${
-                theme === 'light'
+              className={`px-3.5 py-2 rounded-xl text-xs font-medium transition-all flex items-center space-x-1.5 shadow-sm border ${theme === 'light'
                   ? 'bg-white hover:bg-amber-100/60 border-slate-200 hover:border-amber-400 text-slate-800'
                   : 'bg-slate-800/90 hover:bg-amber-500/20 border-slate-700 hover:border-amber-500/50 text-slate-200'
-              }`}
+                }`}
             >
               <User className="w-3.5 h-3.5 text-amber-500" />
               <span>{p.label}</span>
@@ -125,19 +131,16 @@ export default function ConversationalIntake() {
       </div>
 
       {/* Main Conversational Intake Input */}
-      <div className={`glass-panel rounded-2xl p-6 border shadow-2xl relative overflow-hidden transition-colors ${
-        theme === 'light' ? 'bg-white border-slate-200' : 'border-slate-800'
-      }`}>
+      <div className={`glass-panel rounded-2xl p-6 border shadow-2xl relative overflow-hidden transition-colors ${theme === 'light' ? 'bg-white border-slate-200' : 'border-slate-800'
+        }`}>
         <div className="flex items-center justify-between mb-4">
-          <h2 className={`text-xl font-bold font-outfit flex items-center gap-2 ${
-            theme === 'light' ? 'text-slate-900' : 'text-white'
-          }`}>
+          <h2 className={`text-xl font-bold font-outfit flex items-center gap-2 ${theme === 'light' ? 'text-slate-900' : 'text-white'
+            }`}>
             <Send className="w-5 h-5 text-amber-500" />
             {t.intakeHeader}
           </h2>
-          <span className={`text-xs px-2.5 py-1 rounded-full font-medium border ${
-            theme === 'light' ? 'bg-slate-100 border-slate-200 text-slate-700' : 'bg-slate-800 border-slate-700 text-slate-300'
-          }`}>
+          <span className={`text-xs px-2.5 py-1 rounded-full font-medium border ${theme === 'light' ? 'bg-slate-100 border-slate-200 text-slate-700' : 'bg-slate-800 border-slate-700 text-slate-300'
+            }`}>
             Natural Language NLP Intake
           </span>
         </div>
@@ -149,11 +152,10 @@ export default function ConversationalIntake() {
             onChange={(e) => setInputText(e.target.value)}
             placeholder={t.intakePlaceholder}
             rows={4}
-            className={`w-full border rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 transition-all resize-none font-sans ${
-              theme === 'light'
+            className={`w-full border rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 transition-all resize-none font-sans ${theme === 'light'
                 ? 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:border-amber-500'
                 : 'bg-slate-950/90 border-slate-800 text-slate-100 placeholder-slate-500 focus:border-amber-500/80'
-            }`}
+              }`}
           />
 
           {/* Voice Mic Button */}
@@ -161,11 +163,10 @@ export default function ConversationalIntake() {
             <button
               onClick={() => setIsVoiceOpen(true)}
               disabled={isTranscribing}
-              className={`w-12 h-12 rounded-full flex items-center justify-center transition-all shadow-lg ${
-                isTranscribing
+              className={`w-12 h-12 rounded-full flex items-center justify-center transition-all shadow-lg ${isTranscribing
                   ? 'bg-amber-500 cursor-wait animate-pulse shadow-amber-500/30'
                   : 'bg-gradient-to-br from-amber-500 to-orange-500 hover:scale-110 hover:shadow-amber-500/40'
-              }`}
+                }`}
             >
               {isTranscribing ? (
                 <Loader2 className="w-5 h-5 text-white animate-spin" />
@@ -178,18 +179,16 @@ export default function ConversationalIntake() {
 
         {/* Manual Field Tweaker Grid */}
         <div className={`mb-6 pt-4 border-t ${theme === 'light' ? 'border-slate-200' : 'border-slate-800/80'}`}>
-          <h3 className={`text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-1.5 ${
-            theme === 'light' ? 'text-slate-600' : 'text-slate-400'
-          }`}>
+          <h3 className={`text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-1.5 ${theme === 'light' ? 'text-slate-600' : 'text-slate-400'
+            }`}>
             <Layers className="w-3.5 h-3.5 text-amber-500" />
             {t.extractHeader}
           </h3>
-          
+
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             {/* Category */}
-            <div className={`p-3 rounded-xl border ${
-              theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/80 border-slate-800'
-            }`}>
+            <div className={`p-3 rounded-xl border ${theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/80 border-slate-800'
+              }`}>
               <span className="text-[10px] text-slate-400 font-semibold uppercase block">Social Category</span>
               <select
                 value={applicantProfile.category}
@@ -204,9 +203,8 @@ export default function ConversationalIntake() {
             </div>
 
             {/* Gender */}
-            <div className={`p-3 rounded-xl border ${
-              theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/80 border-slate-800'
-            }`}>
+            <div className={`p-3 rounded-xl border ${theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/80 border-slate-800'
+              }`}>
               <span className="text-[10px] text-slate-400 font-semibold uppercase block">Gender</span>
               <select
                 value={applicantProfile.gender}
@@ -220,9 +218,8 @@ export default function ConversationalIntake() {
             </div>
 
             {/* Annual Income */}
-            <div className={`p-3 rounded-xl border ${
-              theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/80 border-slate-800'
-            }`}>
+            <div className={`p-3 rounded-xl border ${theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/80 border-slate-800'
+              }`}>
               <span className="text-[10px] text-slate-400 font-semibold uppercase block">Annual Income (₹)</span>
               <input
                 type="number"
@@ -233,9 +230,8 @@ export default function ConversationalIntake() {
             </div>
 
             {/* Business Type */}
-            <div className={`p-3 rounded-xl border ${
-              theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/80 border-slate-800'
-            }`}>
+            <div className={`p-3 rounded-xl border ${theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/80 border-slate-800'
+              }`}>
               <span className="text-[10px] text-slate-400 font-semibold uppercase block">Business Sector</span>
               <select
                 value={applicantProfile.business_type}
@@ -252,9 +248,8 @@ export default function ConversationalIntake() {
             </div>
 
             {/* Requested Loan Amount */}
-            <div className={`p-3 rounded-xl border ${
-              theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/80 border-slate-800'
-            }`}>
+            <div className={`p-3 rounded-xl border ${theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/80 border-slate-800'
+              }`}>
               <span className="text-[10px] text-slate-400 font-semibold uppercase block">Loan Needed (₹)</span>
               <input
                 type="number"
@@ -265,9 +260,8 @@ export default function ConversationalIntake() {
             </div>
 
             {/* Location */}
-            <div className={`p-3 rounded-xl border ${
-              theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/80 border-slate-800'
-            }`}>
+            <div className={`p-3 rounded-xl border ${theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/80 border-slate-800'
+              }`}>
               <span className="text-[10px] text-slate-400 font-semibold uppercase block">State / District</span>
               <input
                 type="text"
@@ -280,9 +274,8 @@ export default function ConversationalIntake() {
                     state: parts[1] ? parts[1].trim() : applicantProfile.state
                   });
                 }}
-                className={`w-full bg-transparent text-xs font-bold focus:outline-none mt-1 ${
-                  theme === 'light' ? 'text-slate-800' : 'text-slate-200'
-                }`}
+                className={`w-full bg-transparent text-xs font-bold focus:outline-none mt-1 ${theme === 'light' ? 'text-slate-800' : 'text-slate-200'
+                  }`}
               />
             </div>
           </div>
@@ -291,7 +284,7 @@ export default function ConversationalIntake() {
         {/* CTA Button */}
         <div className="flex justify-end">
           <button
-            onClick={handleNaturalLanguageParse}
+            onClick={handleSubmit}
             disabled={loading}
             className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-400 text-slate-950 font-bold text-sm hover:brightness-110 transition-all shadow-xl shadow-amber-500/25 flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
           >

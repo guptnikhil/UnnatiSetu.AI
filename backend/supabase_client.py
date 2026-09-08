@@ -43,6 +43,9 @@ def get_admin_client() -> "Client":
         raise RuntimeError("supabase-py is not installed. Run: pip install supabase")
     url = _require_env("SUPABASE_URL")
     key = _require_env("SUPABASE_SERVICE_ROLE_KEY")
+    masked_url = url[:15] + "..." if len(url) > 15 else url
+    masked_key = key[:8] + "..." if len(key) > 8 else key
+    print(f"[Supabase] Initializing Admin Client -> URL: {masked_url}, ServiceKey: {masked_key}")
     return create_client(url, key)
 
 
@@ -53,15 +56,21 @@ def get_public_client() -> "Client":
         raise RuntimeError("supabase-py is not installed. Run: pip install supabase")
     url = _require_env("SUPABASE_URL")
     key = _require_env("SUPABASE_ANON_KEY")
+    masked_url = url[:15] + "..." if len(url) > 15 else url
+    masked_key = key[:8] + "..." if len(key) > 8 else key
+    print(f"[Supabase] Initializing Public Client -> URL: {masked_url}, AnonKey: {masked_key}")
     return create_client(url, key)
 
 
 def is_supabase_configured() -> bool:
     """Returns True if Supabase env vars are present — used for graceful fallback."""
-    return bool(
+    configured = bool(
         os.environ.get("SUPABASE_URL")
         and os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
     )
+    if not configured:
+        print("[Supabase] Configuration check: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing. Operating in Synthetic Fallback mode.")
+    return configured
 
 
 # ---------------------------------------------------------------------------

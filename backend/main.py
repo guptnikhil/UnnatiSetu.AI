@@ -190,6 +190,93 @@ def get_ranked_partners(data: PartnerRankInput):
     )
     return {"ranked_partners": ranked}
 
+@app.get("/api/health")
+def health_check():
+    """Diagnostic health check for API, Sarvam AI, and Supabase connectivity."""
+    sarvam_key_set = bool(os.environ.get("SARVAM_API_KEY"))
+    supabase_url_set = bool(os.environ.get("SUPABASE_URL"))
+    supabase_service_key_set = bool(os.environ.get("SUPABASE_SERVICE_ROLE_KEY"))
+    supabase_anon_key_set = bool(os.environ.get("SUPABASE_ANON_KEY"))
+
+    supabase_status = "Disconnected (Synthetic Fallback)"
+    supabase_error = None
+
+    if _USE_SUPABASE:
+        try:
+            client = db.get_public_client()
+            res = client.table("schemes").select("*").limit(1).execute()
+            supabase_status = f"Connected (Found {len(res.data or [])} schemes)"
+        except Exception as e:
+            supabase_status = "Failed (Error during test query)"
+            supabase_error = str(e)
+
+    gemini_key_set = bool(os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"))
+
+    return {
+        "status": "Operational",
+        "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
+        "gemini_ai": {
+            "configured": gemini_key_set,
+            "status": "Ready (gemini-3.7-flash)" if gemini_key_set else "Missing GEMINI_API_KEY",
+        },
+        "sarvam_ai": {
+            "configured": sarvam_key_set,
+            "status": "Ready" if sarvam_key_set else "Missing SARVAM_API_KEY",
+        },
+        "supabase": {
+            "configured": _USE_SUPABASE,
+            "url_set": supabase_url_set,
+            "service_role_key_set": supabase_service_key_set,
+            "anon_key_set": supabase_anon_key_set,
+            "status": supabase_status,
+            "error": supabase_error,
+        }
+    }
+
+@app.get("/api/debug/supabase")
+def debug_supabase():
+    """Performs raw query against Supabase and returns diagnostic status."""
+    url = os.environ.get("SUPABASE_URL", "")
+    masked_url = url[:15] + "..." if url else "NOT_SET"
+    service_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+    masked_service_key = service_key[:8] + "..." if service_key else "NOT_SET"
+    anon_key = os.environ.get("SUPABASE_ANON_KEY", "")
+    masked_anon_key = anon_key[:8] + "..." if anon_key else "NOT_SET"
+
+    schemes_data = []
+    schemes_error = None
+    partners_data = []
+    partners_error = None
+
+    if _USE_SUPABASE:
+        try:
+            public_client = db.get_public_client()
+            s_res = public_client.table("schemes").select("*").limit(5).execute()
+            schemes_data = s_res.data or []
+        except Exception as e:
+            schemes_error = str(e)
+
+        try:
+            p_res = public_client.table("channel_partners").select("*").limit(5).execute()
+            partners_data = p_res.data or []
+        except Exception as e:
+            partners_error = str(e)
+
+    return {
+        "supabase_configured": _USE_SUPABASE,
+        "masked_config": {
+            "SUPABASE_URL": masked_url,
+            "SUPABASE_ANON_KEY": masked_anon_key,
+            "SUPABASE_SERVICE_ROLE_KEY": masked_service_key,
+        },
+        "queries": {
+            "schemes_sample_count": len(schemes_data),
+            "schemes_error": schemes_error,
+            "partners_sample_count": len(partners_data),
+            "partners_error": partners_error,
+        }
+    }
+
 @app.post("/api/nlp/parse")
 def parse_natural_language(input_data: NlpParseInput):
     """
@@ -197,12 +284,16 @@ def parse_natural_language(input_data: NlpParseInput):
     Extracts structured fields while maintaining 100% deterministic decision-making.
     """
     prompt = input_data.text_prompt.lower()
+    print(f"[NLP Parse] Received prompt: {input_data.text_prompt}")
 
-    # Rule-based fallback keyword extraction
+    # Category extraction
     category = "SC"
-    if "st" in prompt or "tribal" in prompt:
+    if "st" in prompt or "tribal" in prompt or "आदिवासी" in prompt:
         category = "ST"
+    elif "obc" in prompt or "पिछड़ा" in prompt:
+        category = "OBC"
 
+    # Gender extraction
     gender = "Female"
     if "man" in prompt or "male" in prompt or "husband" in prompt or "boy" in prompt or "पुरुष" in prompt:
         gender = "Male"
@@ -210,7 +301,7 @@ def parse_natural_language(input_data: NlpParseInput):
         gender = "Female"
 
     locality = "Rural"
-    if "city" in prompt or "urban" in prompt or "town" in prompt or "शहर" in prompt:
+    if "city" in prompt or "urban" in prompt or "town" in prompt or "शहर" in prompt or "नगर" in prompt:
         locality = "Urban"
 
     business = "Micro Enterprise"
@@ -220,49 +311,82 @@ def parse_natural_language(input_data: NlpParseInput):
         business = "Tailoring"
     elif "beauty" in prompt or "parlour" in prompt or "parlor" in prompt or "पार्लर" in prompt:
         business = "Beauty Parlour"
-    elif "shop" in prompt or "grocery" in prompt or "retail" in prompt or "दुकान" in prompt:
+    elif "shop" in prompt or "grocery" in prompt or "retail" in prompt or "दुकान" in prompt or "किराना" in prompt:
         business = "Small Retail"
     elif "rickshaw" in prompt or "e-rickshaw" in prompt or "solar" in prompt or "green" in prompt or "रिक्शा" in prompt:
         business = "E-Rickshaw"
-    elif "transport" in prompt or "vehicle" in prompt or "auto" in prompt:
+    elif "transport" in prompt or "vehicle" in prompt or "auto" in prompt or "गाड़ी" in prompt:
         business = "Transport"
     elif "manufactur" in prompt or "factory" in prompt or "production" in prompt or "उत्पादन" in prompt:
         business = "Manufacturing"
     elif "food" in prompt or "catering" in prompt or "restaurant" in prompt or "खाना" in prompt:
         business = "Food Processing"
 
-    loan_amount = 100000.0
-    # Try finding numeric numbers in prompt
     import re
-    numbers = re.findall(r'\b\d+(?:,\d+)*(?:\.\d+)?\b', prompt.replace("lakh", "00000").replace("लाख", "00000"))
-    if numbers:
+    # Extract loan amount requested dynamically
+    loan_amount = 100000.0
+    loan_match = re.search(r'(?:loan|credit|ऋण|कर्ज)\s*(?:of|for|amount|:)?\s*₹?\s*(\d+(?:,\d+)*(?:\.\d+)?)\s*(lakh|lakhs|лаख|लाख)?', prompt)
+    if loan_match:
         try:
-            val = float(numbers[0].replace(",", ""))
-            if val < 50: # handles e.g. "1.5 lakh" -> 1.5 -> 150000
+            val = float(loan_match.group(1).replace(",", ""))
+            if loan_match.group(2) or val < 50:
                 val = val * 100000
-            loan_amount = min(5000000.0, max(10000.0, val))
-        except:
+            loan_amount = min(10000000.0, max(10000.0, val))
+        except Exception:
+            pass
+    else:
+        numbers = re.findall(r'\b\d+(?:,\d+)*(?:\.\d+)?\b', prompt.replace("lakh", "00000").replace("लाख", "00000").replace("lakhs", "00000"))
+        if numbers:
+            try:
+                val = float(numbers[0].replace(",", ""))
+                if val < 50:
+                    val = val * 100000
+                loan_amount = min(10000000.0, max(10000.0, val))
+            except Exception:
+                pass
+
+    # Extract annual income dynamically if present in prompt
+    annual_income = 120000.0
+    income_match = re.search(r'(?:income|earns?|earn|आय|कमाई|वार्षिक)\s*(?:of|is|:)?\s*₹?\s*(\d+(?:,\d+)*(?:\.\d+)?)\s*(lakh|lakhs|लाख)?', prompt)
+    if income_match:
+        try:
+            inc_val = float(income_match.group(1).replace(",", ""))
+            if income_match.group(2) or inc_val < 50:
+                inc_val = inc_val * 100000
+            annual_income = max(10000.0, inc_val)
+        except Exception:
             pass
 
+    # District / State extraction
     state = "Uttar Pradesh"
+    district = "Lucknow"
     if "bihar" in prompt or "बिहार" in prompt:
         state = "Bihar"
-    elif "maharashtra" in prompt or "mumbai" in prompt or "महाराष्ट्र" in prompt:
+        district = "Patna"
+    elif "maharashtra" in prompt or "mumbai" in prompt or "महाराष्ट्र" in prompt or "मुंबई" in prompt:
         state = "Maharashtra"
+        district = "Mumbai"
     elif "delhi" in prompt or "दिल्ली" in prompt:
         state = "Delhi"
-    elif "mp" in prompt or "madhya pradesh" in prompt or "मध्य प्रदेश" in prompt:
+        district = "Central Delhi"
+    elif "mp" in prompt or "madhya pradesh" in prompt or "मध्य प्रदेश" in prompt or "bhopal" in prompt or "भोपाल" in prompt:
         state = "Madhya Pradesh"
+        district = "Bhopal"
+    elif "varanasi" in prompt or "वाराणसी" in prompt or "काशी" in prompt:
+        state = "Uttar Pradesh"
+        district = "Varanasi"
+
+    print(f"[NLP Parse] Extracted: category={category}, gender={gender}, income={annual_income}, loan={loan_amount}, biz={business}, state={state}, dist={district}")
 
     return {
         "extracted_profile": {
             "name": "Applicant",
             "category": category,
             "gender": gender,
-            "annual_income": 120000,
+            "annual_income": annual_income,
             "locality": locality,
             "state": state,
-            "district": "Capital District",
+            "district": district,
             "pincode": "226001",
             "business_type": business,
             "loan_amount_requested": loan_amount,

@@ -182,19 +182,21 @@ Return ONLY the JSON object, no explanation, no markdown fences."""
 
 async def extract_profile_from_text(transcript: str) -> dict:
     """
-    Uses Sarvam chat/completions to extract structured applicant fields from
-    free-form text (voice transcript or typed input).
-
-    IMPORTANT: This output is used ONLY to pre-populate the intake form fields.
-    The actual eligibility decision is made entirely by the deterministic rules engine.
-
-    Returns:
-        {
-            "extracted_profile": dict,   # keys matching ApplicantProfileInput fields
-            "confidence_note": str,
-            "success": bool
-        }
+    Extracts structured applicant fields from free-form text.
+    Uses Gemini API (gemini-3.7-flash) if GEMINI_API_KEY is present,
+    otherwise uses Sarvam chat/completions (sarvam-m).
     """
+    # 1. Check Gemini API first if configured
+    try:
+        import gemini_service
+        if gemini_service.is_gemini_configured():
+            g_res = await gemini_service.extract_profile_gemini(transcript)
+            if g_res["success"] and g_res["extracted_profile"]:
+                return g_res
+    except Exception as g_err:
+        print(f"[Gemini AI] Provider check error: {g_err}")
+
+    # 2. Sarvam Chat/Completions
     payload = {
         "model": "sarvam-m",
         "messages": [
