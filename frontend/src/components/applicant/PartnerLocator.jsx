@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useMemo } from 'react';
+import React, { useEffect, useRef, useMemo, useState, useCallback } from 'react';
 import { useApp } from '../../context/AppContext';
-import { MapPin, Building2, Phone, CheckCircle2, ShieldCheck, Clock, ArrowRight, Activity, Navigation } from 'lucide-react';
+import { MapPin, Building2, Phone, CheckCircle2, ShieldCheck, Clock, ArrowRight, Activity, Navigation, Locate, Loader2 } from 'lucide-react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
@@ -66,8 +66,46 @@ function FlyToPartner({ partner }) {
   return null;
 }
 
+function FlyToLocation({ position }) {
+  const map = useMap();
+  const prevRef = useRef(null);
+
+  useEffect(() => {
+    if (position && prevRef.current !== `${position[0]},${position[1]}`) {
+      prevRef.current = `${position[0]},${position[1]}`;
+      map.flyTo(position, 8, { duration: 1.5 });
+    }
+  }, [position, map]);
+
+  return null;
+}
+
 export default function PartnerLocator() {
   const { rankedPartners, selectedPartner, setSelectedPartner, setCurrentStep, t, lang, theme, selectedScheme, applicantProfile } = useApp();
+
+  const [geoLocation, setGeoLocation] = useState(null);
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoError, setGeoError] = useState(null);
+
+  const requestLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      setGeoError('Geolocation not supported');
+      return;
+    }
+    setGeoLoading(true);
+    setGeoError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setGeoLocation([pos.coords.latitude, pos.coords.longitude]);
+        setGeoLoading(false);
+      },
+      (err) => {
+        setGeoLoading(false);
+        setGeoError(err.code === 1 ? 'Permission denied' : 'Location unavailable');
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
+  }, []);
 
   const handleSelectPartner = (partner) => {
     setSelectedPartner(partner);
@@ -75,6 +113,7 @@ export default function PartnerLocator() {
   };
 
   const center = useMemo(() => {
+    if (geoLocation) return geoLocation;
     const state = applicantProfile?.state;
     if (state && STATE_COORDINATES[state]) return STATE_COORDINATES[state];
     if (rankedPartners.length > 0) {
@@ -82,12 +121,13 @@ export default function PartnerLocator() {
       return [p.lat, p.lng];
     }
     return [26.8467, 80.9462];
-  }, [applicantProfile, rankedPartners]);
+  }, [geoLocation, applicantProfile, rankedPartners]);
 
   const applicantPos = useMemo(() => {
+    if (geoLocation) return geoLocation;
     const state = applicantProfile?.state;
     return STATE_COORDINATES[state] || null;
-  }, [applicantProfile]);
+  }, [geoLocation, applicantProfile]);
 
   const darkTiles = theme !== 'light';
 
@@ -225,12 +265,40 @@ export default function PartnerLocator() {
           <div className={`glass-panel rounded-2xl p-5 border space-y-4 sticky top-24 ${
             theme === 'light' ? 'border-slate-200 bg-white' : 'border-slate-800'
           }`}>
-            <h3 className={`text-sm font-bold font-outfit flex items-center gap-2 ${
-              theme === 'light' ? 'text-slate-900' : 'text-white'
-            }`}>
-              <Navigation className="w-4 h-4 text-amber-500" />
-              Interactive Partner Map
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className={`text-sm font-bold font-outfit flex items-center gap-2 ${
+                theme === 'light' ? 'text-slate-900' : 'text-white'
+              }`}>
+                <Navigation className="w-4 h-4 text-amber-500" />
+                Interactive Partner Map
+              </h3>
+              <button
+                onClick={requestLocation}
+                disabled={geoLoading}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  geoLoading
+                    ? 'opacity-60 cursor-wait'
+                    : geoLocation
+                    ? theme === 'light'
+                      ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                      : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                    : theme === 'light'
+                    ? 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100'
+                    : 'bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-blue-500/30'
+                }`}
+              >
+                {geoLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Locate className="w-3.5 h-3.5" />}
+                {geoLoading ? 'Locating...' : geoLocation ? 'Location Active' : 'Use My Location'}
+              </button>
+            </div>
+
+            {geoError && (
+              <div className={`text-xs px-3 py-2 rounded-lg border ${
+                theme === 'light' ? 'bg-red-50 border-red-200 text-red-600' : 'bg-red-500/10 border-red-500/20 text-red-400'
+              }`}>
+                {geoError === 'Permission denied' ? 'Location permission denied. Using state-based location.' : geoError}
+              </div>
+            )}
 
             {/* Real Leaflet Map */}
             <div className={`relative w-full h-[400px] rounded-xl overflow-hidden border ${
@@ -255,7 +323,7 @@ export default function PartnerLocator() {
               `}</style>
               <MapContainer
                 center={center}
-                zoom={6}
+                zoom={geoLocation ? 8 : 6}
                 className="w-full h-full z-0"
                 scrollWheelZoom={true}
                 zoomControl={true}
@@ -267,14 +335,21 @@ export default function PartnerLocator() {
                 />
 
                 <FlyToPartner partner={selectedPartner} />
+                {geoLocation && <FlyToLocation position={geoLocation} />}
 
                 {/* Applicant location marker */}
                 {applicantPos && (
                   <Marker position={applicantPos} icon={createApplicantIcon()}>
                     <Popup>
                       <div style={{ minWidth: 140 }}>
-                        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4, color: '#3b82f6' }}>Your Location</div>
-                        <div style={{ fontSize: 12, color: '#64748b' }}>{applicantProfile?.district}, {applicantProfile?.state}</div>
+                        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4, color: '#3b82f6' }}>
+                          {geoLocation ? 'Your Live Location' : 'Your Location'}
+                        </div>
+                        <div style={{ fontSize: 12, color: '#64748b' }}>
+                          {geoLocation
+                            ? `${geoLocation[0].toFixed(4)}, ${geoLocation[1].toFixed(4)}`
+                            : `${applicantProfile?.district}, ${applicantProfile?.state}`}
+                        </div>
                       </div>
                     </Popup>
                   </Marker>

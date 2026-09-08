@@ -596,6 +596,29 @@ export const AppProvider = ({ children }) => {
       }
     } catch (err) {
       console.warn("Partner rank endpoint fallback:", err);
+      const FALLBACK_PARTNERS = [
+        { id:"CP_UP_SCA_01", name:"UP SC Finance & Dev Corp (UPSCFDC)", type:"State Channelizing Agency", district:"Lucknow", state:"Uttar Pradesh", lat:26.8467, lng:80.9462, supported_scheme_ids:["SCH_MSY","SCH_MCS","SCH_TLS","SCH_MKY","SCH_GBS"], capacity_score:92, capacity_label_en:"High Capacity (Fast Track)", capacity_label_hi:"उच्च क्षमता (त्वरित प्रक्रिया)", npa_status:"Low Risk (2.1% NPA)", contact_phone:"+91 522 2286741", address:"Pragati Bhawan, Lucknow, UP", avg_turnaround_days:14 },
+        { id:"CP_UP_PNB_02", name:"Punjab National Bank - Microfinance", type:"Public Sector Bank", district:"Varanasi", state:"Uttar Pradesh", lat:25.3176, lng:82.9739, supported_scheme_ids:["SCH_MSY","SCH_MCS","SCH_TLS"], capacity_score:78, capacity_label_en:"Moderate Capacity", capacity_label_hi:"मध्यम क्षमता", npa_status:"Moderate Risk (4.3%)", contact_phone:"+91 542 2501234", address:"Cantonment Road, Varanasi, UP", avg_turnaround_days:21 },
+        { id:"CP_MH_SCA_01", name:"Mahatma Phule BCDC", type:"State Channelizing Agency", district:"Mumbai", state:"Maharashtra", lat:19.06, lng:72.8426, supported_scheme_ids:["SCH_MSY","SCH_MCS","SCH_TLS","SCH_GBS"], capacity_score:88, capacity_label_en:"High Capacity", capacity_label_hi:"उच्च क्षमता", npa_status:"Low Risk (1.8%)", contact_phone:"+91 22 26591234", address:"BKC, Bandra East, Mumbai", avg_turnaround_days:12 },
+        { id:"CP_BH_SCA_01", name:"Bihar SC Co-op Dev Corp", type:"State Channelizing Agency", district:"Patna", state:"Bihar", lat:25.6126, lng:85.1588, supported_scheme_ids:["SCH_MSY","SCH_MCS","SCH_MKY"], capacity_score:65, capacity_label_en:"Moderate Queue", capacity_label_hi:"मध्यम कतार", npa_status:"Moderate Risk (5.1%)", contact_phone:"+91 612 2215678", address:"Maurya Lok Complex, Patna", avg_turnaround_days:28 },
+        { id:"CP_DL_SBI_01", name:"SBI - Priority Lending Hub", type:"Public Sector Bank", district:"Central Delhi", state:"Delhi", lat:28.6315, lng:77.2167, supported_scheme_ids:["SCH_MSY","SCH_MCS","SCH_TLS","SCH_GBS"], capacity_score:95, capacity_label_en:"Express Fast Track", capacity_label_hi:"एक्सप्रेस फास्ट ट्रैक", npa_status:"Ultra Low (0.9%)", contact_phone:"+91 11 23349000", address:"Connaught Place, New Delhi", avg_turnaround_days:8 },
+        { id:"CP_MP_SCA_01", name:"MP SC Finance & Dev Corp", type:"State Channelizing Agency", district:"Bhopal", state:"Madhya Pradesh", lat:23.2599, lng:77.4126, supported_scheme_ids:["SCH_MSY","SCH_MCS","SCH_TLS","SCH_MKY"], capacity_score:82, capacity_label_en:"High Capacity", capacity_label_hi:"उच्च क्षमता", npa_status:"Low Risk (2.4%)", contact_phone:"+91 755 2554321", address:"Shyamla Hills, Bhopal", avg_turnaround_days:15 }
+      ];
+      const STATE_COORDS = { 'Uttar Pradesh':[26.8467,80.9462], 'Maharashtra':[19.076,72.8777], 'Bihar':[25.6093,85.1376], 'Delhi':[28.6315,77.2167], 'Madhya Pradesh':[23.2599,77.4126], 'Rajasthan':[26.9124,75.7873], 'West Bengal':[22.5726,88.3639], 'Tamil Nadu':[13.0827,80.2707] };
+      const coords = STATE_COORDS[state] || [26.8467,80.9462];
+      const R = 6371;
+      const haversine = (lat1,lon1,lat2,lon2) => { const dLat=(lat2-lat1)*Math.PI/180, dLon=(lon2-lon1)*Math.PI/180, a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2; return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a)); };
+      const ranked = FALLBACK_PARTNERS.map(p => {
+        const dist = Math.round(haversine(coords[0],coords[1],p.lat,p.lng)*10)/10;
+        const supports = p.supported_scheme_ids.includes(targetSchemeId);
+        const proxScore = Math.max(0, 100 - dist*0.25);
+        const schemeScore = supports ? 100 : 40;
+        const stateBonus = p.state.toLowerCase() === (state||'').toLowerCase() ? 15 : 0;
+        const score = Math.min(100, Math.round(proxScore*0.35 + p.capacity_score*0.35 + schemeScore*0.20 + stateBonus));
+        return { partner:p, distance_km:dist, supports_target_scheme:supports, rank_score:score };
+      }).sort((a,b) => b.rank_score - a.rank_score);
+      setRankedPartners(ranked);
+      if (ranked.length > 0) setSelectedPartner(ranked[0].partner);
     }
   };
 
