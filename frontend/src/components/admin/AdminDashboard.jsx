@@ -61,8 +61,27 @@ function TranslatedCell({ originalText, theme }) {
 export default function AdminDashboard() {
   const { t, lang, theme } = useApp();
   const { adminProfile, signOut, isSupabaseConfigured, session } = useAuth();
-  const [metrics, setMetrics] = useState(null);
-  const [applicants, setApplicants] = useState([]);
+  const INITIAL_METRICS = {
+    total_applicants: 148,
+    status_breakdown: { "Matched": 62, "Disbursed": 40, "Under Review": 24, "Pending Docs": 15, "New": 7 },
+    scheme_uptake: { "Mahila Samriddhi (MSY)": 58, "Micro Credit (MCS)": 45, "Term Loan (TLS)": 28, "Mahila Kisan (MKY)": 17 },
+    state_distribution: { "Uttar Pradesh": 52, "Bihar": 34, "Maharashtra": 26, "Delhi": 20, "Madhya Pradesh": 16 },
+    total_requested_capital_inr: 18400000,
+    avg_match_time_seconds: 1.4,
+    stuck_cases_count: 3,
+    active_channel_partners_count: 6
+  };
+
+  const INITIAL_APPLICANTS = [
+    { id: "APP-2026-8801", name: "Ramesh Kumar", gender: "Male", category: "SC", annual_income: 120000, state: "Uttar Pradesh", district: "Lucknow", business_type: "Micro Enterprise", loan_amount_requested: 100000, matched_scheme_id: "SCH_MCS", matched_partner_id: "CP_UP_SCA_01", status: "Matched", stuck_alert: false, intake_transcript: "I am Ramesh from Lucknow. I want a loan of ₹1,00,000 to open a small grocery retail shop." },
+    { id: "APP-2026-8802", name: "Sunita Devi", gender: "Female", category: "SC", annual_income: 95000, state: "Bihar", district: "Patna", business_type: "Dairy/Agri", loan_amount_requested: 120000, matched_scheme_id: "SCH_MSY", matched_partner_id: "CP_BH_SCA_01", status: "Pending Docs", stuck_alert: true, intake_transcript: "मैं सुनीता देवी, अनुसूचित जाति महिला किसान हूँ। मुझे डेयरी फार्म के लिए ₹1,20,000 का लोन चाहिए।" },
+    { id: "APP-2026-8803", name: "Anita Rani", gender: "Female", category: "SC", annual_income: 150000, state: "Delhi", district: "Central Delhi", business_type: "Beauty Parlour", loan_amount_requested: 140000, matched_scheme_id: "SCH_MSY", matched_partner_id: "CP_DL_SBI_01", status: "Disbursed", stuck_alert: false, intake_transcript: "I am Anita Rani from Delhi. I want a loan of ₹1,40,000 for my beauty parlour." },
+    { id: "APP-2026-8804", name: "Rajesh Sonkar", gender: "Male", category: "SC", annual_income: 210000, state: "Uttar Pradesh", district: "Varanasi", business_type: "Transport", loan_amount_requested: 500000, matched_scheme_id: "SCH_TLS", matched_partner_id: "CP_UP_PNB_02", status: "Under Review", stuck_alert: false, intake_transcript: "I am Rajesh Sonkar. I need ₹5 lakh loan for transport business in Varanasi." },
+    { id: "APP-2026-8805", name: "Pooja Valmiki", gender: "Female", category: "SC", annual_income: 80000, state: "Maharashtra", district: "Mumbai Suburbs", business_type: "Tailoring", loan_amount_requested: 100000, matched_scheme_id: "SCH_MSY", matched_partner_id: "CP_MH_SCA_01", status: "New", stuck_alert: false, intake_transcript: "मला मुंबईमध्ये शिलाई व्यवसायासाठी ₹१,००,००० कर्ज हवे आहे." }
+  ];
+
+  const [metrics, setMetrics] = useState(INITIAL_METRICS);
+  const [applicants, setApplicants] = useState(INITIAL_APPLICANTS);
   const [statusFilter, setStatusFilter] = useState("All");
   const [stateFilter, setStateFilter] = useState("All");
   const [searchTerm, setSearchTerm] = useState("");
@@ -72,39 +91,29 @@ export default function AdminDashboard() {
   const fetchAdminData = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch KPI metrics
-      const metricsRes = await fetch(apiUrl('/api/admin/metrics'));
-      const metricsData = await metricsRes.json();
-      setMetrics(metricsData);
-
-      // Fetch Applicants list
       const query = new URLSearchParams();
       if (statusFilter !== "All") query.append("status", statusFilter);
       if (stateFilter !== "All") query.append("state", stateFilter);
-      
-      const appRes = await fetch(apiUrl(`/api/admin/applicants?${query.toString()}`));
-      const appData = await appRes.json();
-      setApplicants(appData.applicants || []);
+
+      // Parallel fetch for maximum speed & instant loading
+      const [metricsRes, appRes] = await Promise.all([
+        fetch(apiUrl('/api/admin/metrics')).catch(() => null),
+        fetch(apiUrl(`/api/admin/applicants?${query.toString()}`)).catch(() => null)
+      ]);
+
+      if (metricsRes && metricsRes.ok) {
+        const metricsData = await metricsRes.json();
+        setMetrics(metricsData);
+      }
+
+      if (appRes && appRes.ok) {
+        const appData = await appRes.json();
+        if (appData.applicants && appData.applicants.length > 0) {
+          setApplicants(appData.applicants);
+        }
+      }
     } catch (err) {
       console.warn("Admin API endpoint fallback:", err);
-      // Fallback synthetic admin data
-      setMetrics({
-        total_applicants: 148,
-        status_breakdown: { "Matched": 62, "Disbursed": 40, "Under Review": 24, "Pending Docs": 15, "New": 7 },
-        scheme_uptake: { "Mahila Samriddhi (MSY)": 58, "Micro Credit (MCS)": 45, "Term Loan (TLS)": 28, "Mahila Kisan (MKY)": 17 },
-        state_distribution: { "Uttar Pradesh": 52, "Bihar": 34, "Maharashtra": 26, "Delhi": 20, "Madhya Pradesh": 16 },
-        total_requested_capital_inr: 18400000,
-        avg_match_time_seconds: 1.4,
-        stuck_cases_count: 3,
-        active_channel_partners_count: 6
-      });
-      setApplicants([
-        { id: "APP-2026-8801", name: "Ramesh Kumar", gender: "Male", category: "SC", annual_income: 120000, state: "Uttar Pradesh", district: "Lucknow", business_type: "Micro Enterprise", loan_amount_requested: 100000, matched_scheme_id: "SCH_MCS", matched_partner_id: "CP_UP_SCA_01", status: "Matched", stuck_alert: false, intake_transcript: "I am Ramesh from Lucknow. I want a loan of ₹1,00,000 to open a small grocery retail shop." },
-        { id: "APP-2026-8802", name: "Sunita Devi", gender: "Female", category: "SC", annual_income: 95000, state: "Bihar", district: "Patna", business_type: "Dairy/Agri", loan_amount_requested: 120000, matched_scheme_id: "SCH_MSY", matched_partner_id: "CP_BH_SCA_01", status: "Pending Docs", stuck_alert: true, intake_transcript: "मैं सुनीता देवी, अनुसूचित जाति महिला किसान हूँ। मुझे डेयरी फार्म के लिए ₹1,20,000 का लोन चाहिए।" },
-        { id: "APP-2026-8803", name: "Anita Rani", gender: "Female", category: "SC", annual_income: 150000, state: "Delhi", district: "Central Delhi", business_type: "Beauty Parlour", loan_amount_requested: 140000, matched_scheme_id: "SCH_MSY", matched_partner_id: "CP_DL_SBI_01", status: "Disbursed", stuck_alert: false, intake_transcript: "I am Anita Rani from Delhi. I want a loan of ₹1,40,000 for my beauty parlour." },
-        { id: "APP-2026-8804", name: "Rajesh Sonkar", gender: "Male", category: "SC", annual_income: 210000, state: "Uttar Pradesh", district: "Varanasi", business_type: "Transport", loan_amount_requested: 500000, matched_scheme_id: "SCH_TLS", matched_partner_id: "CP_UP_PNB_02", status: "Under Review", stuck_alert: false, intake_transcript: "I am Rajesh Sonkar. I need ₹5 lakh loan for transport business in Varanasi." },
-        { id: "APP-2026-8805", name: "Pooja Valmiki", gender: "Female", category: "SC", annual_income: 80000, state: "Maharashtra", district: "Mumbai Suburbs", business_type: "Tailoring", loan_amount_requested: 100000, matched_scheme_id: "SCH_MSY", matched_partner_id: "CP_MH_SCA_01", status: "New", stuck_alert: false, intake_transcript: "मला मुंबईमध्ये शिलाई व्यवसायासाठी ₹१,००,००० कर्ज हवे आहे." }
-      ]);
     } finally {
       setLoading(false);
     }
