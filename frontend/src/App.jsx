@@ -8,29 +8,7 @@ import EMICalculator from './components/applicant/EMICalculator';
 import PartnerLocator from './components/applicant/PartnerLocator';
 import DocumentChecklist from './components/applicant/DocumentChecklist';
 import AdminDashboard from './components/admin/AdminDashboard';
-import AdminLogin from './components/admin/AdminLogin';
 import { ShieldCheck, Heart, Sparkles } from 'lucide-react';
-import { useAuth } from './context/SupabaseAuthContext';
-
-/**
- * AdminGate — shows AdminLogin if no session, AdminDashboard if authenticated.
- * When Supabase is not configured, skips auth and shows the dashboard directly.
- */
-function AdminGate() {
-  const { isAdmin, authLoading, isSupabaseConfigured } = useAuth();
-
-  if (authLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[40vh]">
-        <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  // No Supabase configured → bypass auth for demo
-  if (!isSupabaseConfigured || isAdmin) return <AdminDashboard />;
-  return <AdminLogin />;
-}
 
 function MainContent() {
   const { mode, currentStep, theme } = useApp();
@@ -55,7 +33,7 @@ function MainContent() {
               {currentStep === 5 && <DocumentChecklist />}
             </div>
           ) : (
-            <AdminGate />
+            <AdminDashboard />
           )}
         </main>
       </div>

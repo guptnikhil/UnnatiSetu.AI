@@ -118,7 +118,7 @@ export default function AdminDashboard() {
   // Supabase real-time subscription — broadcasts new applicants and status updates
   // to all connected admin tabs without requiring a manual refresh.
   useEffect(() => {
-    if (!isSupabaseConfigured || !session) return;
+    if (!isSupabaseConfigured) return;
 
     // Dynamically import to avoid crashing when Supabase is not configured
     import('../../context/SupabaseAuthContext').then(({ supabase }) => {
@@ -215,37 +215,16 @@ export default function AdminDashboard() {
         </div>
 
         <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
-          {/* Signed-in admin badge */}
-          {adminProfile && (
-            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs ${
-              theme === 'light' ? 'bg-slate-50 border-slate-200 text-slate-700' : 'bg-slate-800 border-slate-700 text-slate-300'
-            }`}>
-              <UserCircle className="w-3.5 h-3.5 text-amber-500" />
-              <span className="font-semibold">{adminProfile.full_name || 'Officer'}</span>
-              <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono ${
-                adminProfile.role === 'regional_head'
-                  ? 'bg-purple-500/20 text-purple-400'
-                  : 'bg-amber-500/10 text-amber-500'
-              }`}>
-                {adminProfile.role === 'regional_head' ? 'Regional Head' : 'Officer'}
-              </span>
-            </div>
-          )}
-
-          {/* Sign-out (only when Supabase auth is active) */}
-          {isSupabaseConfigured && session && (
-            <button
-              onClick={signOut}
-              className={`px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                theme === 'light'
-                  ? 'bg-white hover:bg-rose-50 border-slate-200 hover:border-rose-300 text-slate-600 hover:text-rose-600'
-                  : 'bg-slate-800 hover:bg-rose-900/30 border-slate-700 hover:border-rose-700 text-slate-400 hover:text-rose-400'
-              }`}
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              Sign Out
-            </button>
-          )}
+          {/* NSFDC Admin badge */}
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs ${
+            theme === 'light' ? 'bg-slate-50 border-slate-200 text-slate-700' : 'bg-slate-800 border-slate-700 text-slate-300'
+          }`}>
+            <UserCircle className="w-3.5 h-3.5 text-amber-500" />
+            <span className="font-semibold">{adminProfile?.full_name || 'NSFDC Officer'}</span>
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-amber-500/10 text-amber-500">
+              {adminProfile?.role === 'regional_head' ? 'Regional Head' : 'Officer'}
+            </span>
+          </div>
 
           <button
             onClick={fetchAdminData}

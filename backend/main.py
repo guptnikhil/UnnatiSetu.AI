@@ -190,6 +190,7 @@ def get_ranked_partners(data: PartnerRankInput):
     )
     return {"ranked_partners": ranked}
 
+@app.get("/health")
 @app.get("/api/health")
 def health_check():
     """Diagnostic health check for API, Sarvam AI, and Supabase connectivity."""
@@ -210,18 +211,12 @@ def health_check():
             supabase_status = "Failed (Error during test query)"
             supabase_error = str(e)
 
-    gemini_key_set = bool(os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"))
-
     return {
         "status": "Operational",
         "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
-        "gemini_ai": {
-            "configured": gemini_key_set,
-            "status": "Ready (gemini-3.7-flash)" if gemini_key_set else "Missing GEMINI_API_KEY",
-        },
         "sarvam_ai": {
             "configured": sarvam_key_set,
-            "status": "Ready" if sarvam_key_set else "Missing SARVAM_API_KEY",
+            "status": "Ready (saaras:v3, Bulbul, sarvam-m)" if sarvam_key_set else "Missing SARVAM_API_KEY",
         },
         "supabase": {
             "configured": _USE_SUPABASE,
@@ -688,17 +683,11 @@ async def sarvam_text_to_speech(body: SarvamTtsInput):
         text=body.text,
         target_language_code=body.target_language_code,
     )
-    if not result["success"]:
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "message": "Text-to-speech service temporarily unavailable.",
-                "error": result.get("error", "unknown"),
-            },
-        )
     return {
-        "audio_base64": result["audio_base64"],
+        "audio_base64": result.get("audio_base64", ""),
         "target_language_code": body.target_language_code,
+        "success": result.get("success", False),
+        "note": "TTS requires valid SARVAM_API_KEY" if not result.get("success") else "Generated audio"
     }
 
 
