@@ -18,19 +18,19 @@ export default function VoiceAgentOverlay({ isOpen, onClose, onTranscript, theme
   const { getFrequencyData, getVolume } = useAudioAnalyser(stream);
 
   // Default Demo Voice Values (Single guaranteed value for demo presentation)
-  const DEMO_TRANSCRIPT = "मैं सुनीता देवी, अनुसूचित जाति महिला किसान हूँ। मैं पटना ग्रामीण से हूँ और डेयरी उद्योग के लिए ₹1,20,000 ऋण चाहती हूँ।";
+  const DEMO_TRANSCRIPT = "I am Ramesh Kumar, from the Scheduled Caste community. I am from Lucknow and I want a ₹1,00,000 loan for a micro enterprise.";
   
   const DEMO_EXTRACTED_PROFILE = {
-    name: "Sunita Devi",
+    name: "Ramesh Kumar",
     category: "SC",
-    gender: "Female",
-    annual_income: 95000,
+    gender: "Male",
+    annual_income: 120000,
     locality: "Rural",
-    state: "Bihar",
-    district: "Patna",
-    business_type: "Dairy/Agri",
-    loan_amount_requested: 120000,
-    affordability_monthly_emi: 2200
+    state: "Uttar Pradesh",
+    district: "Lucknow",
+    business_type: "Micro Enterprise",
+    loan_amount_requested: 100000,
+    affordability_monthly_emi: 2500
   };
 
   useEffect(() => {
