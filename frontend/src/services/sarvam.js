@@ -139,16 +139,11 @@ export async function extractProfile(transcript) {
   }
 
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2000);
-
     const res = await fetch(`${BASE}/extract`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ transcript }),
-      signal: controller.signal,
     });
-    clearTimeout(timeoutId);
 
     if (!res.ok) {
       return { extracted_profile: {}, confidence_note: '', success: false };
@@ -161,7 +156,7 @@ export async function extractProfile(transcript) {
       success: data.success !== false,
     };
   } catch (err) {
-    console.warn('[Sarvam Extract] Fast fallback due to network/timeout:', err.message);
+    console.warn('[Sarvam Extract] Network error:', err.message);
     return { extracted_profile: {}, confidence_note: '', success: false };
   }
 }

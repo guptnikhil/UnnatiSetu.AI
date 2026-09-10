@@ -482,77 +482,62 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // Helper to compute local rule engine matching instantly
-  const computeLocalSchemeMatches = (profile) => {
-    const FALLBACK_SCHEMES = [
-      { id: "SCH_MSY", code: "MSY", name_en: "Mahila Samriddhi Yojana (MSY)", name_hi: "महिला समृद्धि योजना (MSY)", category_target: ["SC"], gender_target: ["Female"], max_income_rural: 300000, max_income_urban: 300000, max_loan_amount: 140000, interest_rate_pa: 4.0, max_tenure_months: 60, moratorium_months: 6, nsfdc_subsidy_pct: 14.0, promoter_contribution_pct: 5.0, allowed_business_types: ["Micro Enterprise","Handicraft","Tailoring","Dairy/Agri","Retail Shop","Beauty Parlour"], description_en: "Concessional micro-credit for SC women entrepreneurs.", description_hi: "अनुसूचित जाति की महिला उद्यमियों के लिए रियायती माइक्रो-क्रेडिट।", required_documents: [{id:"doc_aadhaar",name_en:"Aadhaar Card",name_hi:"आधार कार्ड",mandatory:true},{id:"doc_caste",name_en:"SC Caste Certificate",name_hi:"अनुसूचित जाति प्रमाणपत्र",mandatory:true},{id:"doc_income",name_en:"Income Certificate",name_hi:"आय प्रमाण पत्र",mandatory:true},{id:"doc_bank",name_en:"Bank Passbook",name_hi:"बैंक पासबुक",mandatory:true}] },
-      { id: "SCH_MCS", code: "MCS", name_en: "Micro Credit Scheme (MCS)", name_hi: "माइक्रो क्रेडिट योजना (MCS)", category_target: ["SC"], gender_target: ["Male","Female","Other"], max_income_rural: 300000, max_income_urban: 300000, max_loan_amount: 140000, interest_rate_pa: 5.0, max_tenure_months: 60, moratorium_months: 6, nsfdc_subsidy_pct: 10.0, promoter_contribution_pct: 5.0, allowed_business_types: ["Micro Enterprise","Small Retail","Artisan Work","Services","Transport","Repair Shop"], description_en: "Financial assistance for small business units and tiny trade.", description_hi: "छोटे व्यावसायिक इकाइयों के लिए वित्तीय सहायता।", required_documents: [{id:"doc_aadhaar",name_en:"Aadhaar Card",name_hi:"आधार कार्ड",mandatory:true},{id:"doc_caste",name_en:"SC Caste Certificate",name_hi:"अनुसूचित जाति प्रमाणपत्र",mandatory:true},{id:"doc_income",name_en:"Income Certificate",name_hi:"आय प्रमाण पत्र",mandatory:true},{id:"doc_bank",name_en:"Bank Passbook",name_hi:"बैंक पासबुक",mandatory:true}] },
-      { id: "SCH_TLS", code: "TLS", name_en: "Term Loan Scheme (TLS)", name_hi: "टर्म लोन योजना (TLS)", category_target: ["SC"], gender_target: ["Male","Female","Other"], max_income_rural: 300000, max_income_urban: 300000, max_loan_amount: 1500000, interest_rate_pa: 6.0, max_tenure_months: 120, moratorium_months: 6, nsfdc_subsidy_pct: 0.0, promoter_contribution_pct: 10.0, allowed_business_types: ["Manufacturing","Services","Agriculture Allied","Small Industry","Transport Fleet","Food Processing"], description_en: "Term loan up to ₹15 Lakhs for transport, service, manufacturing.", description_hi: "परिवहन, सेवा और विनिर्माण के लिए ₹15 लाख तक टर्म लोन।", required_documents: [{id:"doc_aadhaar",name_en:"Aadhaar Card",name_hi:"आधार कार्ड",mandatory:true},{id:"doc_caste",name_en:"SC Caste Certificate",name_hi:"अनुसूचित जाति प्रमाणपत्र",mandatory:true},{id:"doc_income",name_en:"Income Certificate",name_hi:"आय प्रमाण पत्र",mandatory:true},{id:"doc_project_report",name_en:"Project Report",name_hi:"परियोजना रिपोर्ट",mandatory:true}] },
-      { id: "SCH_MKY", code: "MKY", name_en: "Mahila Kisan Yojana (MKY)", name_hi: "महिला किसान योजना (MKY)", category_target: ["SC"], gender_target: ["Female"], max_income_rural: 300000, max_income_urban: 300000, max_loan_amount: 200000, interest_rate_pa: 5.0, max_tenure_months: 60, moratorium_months: 6, nsfdc_subsidy_pct: 12.0, promoter_contribution_pct: 5.0, allowed_business_types: ["Dairy/Agri","Poultry","Organic Farming","Horticulture","Bee Keeping","Agri Processing"], description_en: "Credit for SC women farmers for agriculture activities.", description_hi: "कृषि गतिविधियों के लिए SC महिला किसानों को ऋण।", required_documents: [{id:"doc_aadhaar",name_en:"Aadhaar Card",name_hi:"आधार कार्ड",mandatory:true},{id:"doc_caste",name_en:"SC Caste Certificate",name_hi:"अनुसूचित जाति प्रमाणपत्र",mandatory:true},{id:"doc_land_patta",name_en:"Land Document",name_hi:"भूमि दस्तावेज",mandatory:true},{id:"doc_bank",name_en:"Bank Account",name_hi:"बैंक खाता",mandatory:true}] },
-      { id: "SCH_GBS", code: "GBS", name_en: "Green Business Scheme (GBS)", name_hi: "ग्रीन बिजनेस योजना (GBS)", category_target: ["SC"], gender_target: ["Male","Female","Other"], max_income_rural: 300000, max_income_urban: 300000, max_loan_amount: 3000000, interest_rate_pa: 6.0, max_tenure_months: 120, moratorium_months: 6, nsfdc_subsidy_pct: 0.0, promoter_contribution_pct: 10.0, allowed_business_types: ["E-Rickshaw","Solar Power Unit","Waste Recycling","Bio-gas Plant","Eco-friendly Packaging"], description_en: "Support for eco-friendly businesses like E-Rickshaws and Solar.", description_hi: "ई-रिक्शा और सौर ऊर्जा जैसे पर्यावरण अनुकूल व्यवसायों के लिए सहायता।", required_documents: [{id:"doc_aadhaar",name_en:"Aadhaar Card",name_hi:"आधार कार्ड",mandatory:true},{id:"doc_caste",name_en:"SC Caste Certificate",name_hi:"अनुसूचित जाति प्रमाणपत्र",mandatory:true},{id:"doc_income",name_en:"Income Certificate",name_hi:"आय प्रमाण पत्र",mandatory:true},{id:"doc_project_report",name_en:"Project Report",name_hi:"परियोजना रिपोर्ट",mandatory:true}] }
-    ];
-    const cat = (profile.category || "SC").toUpperCase();
-    const gen = (profile.gender || "Female").charAt(0).toUpperCase() + (profile.gender || "Female").slice(1).toLowerCase();
-    const inc = parseFloat(profile.annual_income || 120000);
-    const loc = profile.locality || "Rural";
-    const loan = parseFloat(profile.loan_amount_requested || 100000);
-    const biz = profile.business_type || "Micro Enterprise";
-
-    return FALLBACK_SCHEMES.map(s => {
-      const passed = [], failed = [];
-      if (cat === "SC") passed.push({rule_code:"RULE_CATEGORY",label_en:`Category (${cat}) matches`,label_hi:"वर्ग मेल खाता है",passed:true}); else failed.push({rule_code:"RULE_CATEGORY",label_en:`Category (${cat}) does not match`,label_hi:"वर्ग मेल नहीं खाता",passed:false});
-      if (s.gender_target.includes(gen)) passed.push({rule_code:"RULE_GENDER",label_en:`Gender (${gen}) eligible`,label_hi:"लिंग पात्र है",passed:true}); else failed.push({rule_code:"RULE_GENDER",label_en:`Restricted to ${s.gender_target.join(", ")}`,label_hi:"केवल आरक्षित",passed:false});
-      const incCap = loc === "Rural" ? s.max_income_rural : s.max_income_urban;
-      if (inc <= incCap) passed.push({rule_code:"RULE_INCOME",label_en:`Income ₹${inc.toLocaleString()} within ₹${incCap.toLocaleString()}`,label_hi:"आय सीमा में",passed:true}); else failed.push({rule_code:"RULE_INCOME",label_en:`Income exceeds ₹${incCap.toLocaleString()}`,label_hi:"आय सीमा से अधिक",passed:false});
-      if (loan <= s.max_loan_amount) passed.push({rule_code:"RULE_LOAN_CAP",label_en:`Loan ₹${loan.toLocaleString()} within ₹${s.max_loan_amount.toLocaleString()}`,label_hi:"ऋण सीमा में",passed:true}); else passed.push({rule_code:"RULE_LOAN_CAP_CAPPED",label_en:`Loan capped at ₹${s.max_loan_amount.toLocaleString()}`,label_hi:"ऋण सीमित",passed:true});
-      const bizMatch = s.allowed_business_types.some(b => b.toLowerCase().includes(biz.toLowerCase())) || s.allowed_business_types.includes("Micro Enterprise");
-      if (bizMatch) passed.push({rule_code:"RULE_BUSINESS_TYPE",label_en:`Business type aligns`,label_hi:"व्यापार प्रकार अनुकूल",passed:true}); else failed.push({rule_code:"RULE_BUSINESS_TYPE",label_en:`Business type outside focus`,label_hi:"व्यापार प्रकार बाहर",passed:false});
-      const eligible = failed.length === 0;
-      const total = passed.length + failed.length;
-      let score = total > 0 ? Math.round((passed.length / total) * 100) : 0;
-      if (gen === "Female" && s.gender_target.length === 1 && s.gender_target[0] === "Female") score = Math.min(100, score + 5);
-      return { scheme: s, is_eligible: eligible, match_score: score, passed_rules: passed, failed_rules: failed, capped_loan_amount: Math.min(loan, s.max_loan_amount), interest_rate_pa: s.interest_rate_pa, max_tenure_months: s.max_tenure_months, moratorium_months: s.moratorium_months };
-    }).sort((a, b) => (b.is_eligible - a.is_eligible) || (b.match_score - a.match_score));
-  };
-
-  // Evaluate schemes via API with instant local matching fallback
+  // Evaluate schemes via API
   const evaluateSchemes = async (profile = applicantProfile) => {
     setLoading(true);
-    // Instant zero-latency rule engine matching for immediate UI display
-    const instantRecs = computeLocalSchemeMatches(profile);
-    setRecommendations(instantRecs);
-    if (instantRecs.length > 0) {
-      const top = instantRecs[0];
-      setSelectedScheme(top.scheme);
-      calculateEmi(top.capped_loan_amount, top.interest_rate_pa, top.max_tenure_months, top.moratorium_months, profile.annual_income / 12);
-      fetchPartners(profile.state, profile.district, top.scheme.id);
-    }
-    setCurrentStep(2);
-
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1500);
-
       const res = await fetch(apiUrl('/api/recommend'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(profile),
-        signal: controller.signal,
+        body: JSON.stringify(profile)
       });
-      clearTimeout(timeoutId);
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data.recommendations && data.recommendations.length > 0) {
-          setRecommendations(data.recommendations);
-          const top = data.recommendations[0];
-          setSelectedScheme(top.scheme);
-          calculateEmi(top.capped_loan_amount, top.interest_rate_pa, top.max_tenure_months, top.moratorium_months, profile.annual_income / 12);
-          fetchPartners(profile.state, profile.district, top.scheme.id);
-        }
+      const data = await res.json();
+      setRecommendations(data.recommendations || []);
+      if (data.recommendations && data.recommendations.length > 0) {
+        const top = data.recommendations[0];
+        setSelectedScheme(top.scheme);
+        // Automatically fetch initial EMI
+        calculateEmi(top.capped_loan_amount, top.interest_rate_pa, top.max_tenure_months, top.moratorium_months, profile.annual_income / 12);
+        // Automatically fetch ranked partners
+        fetchPartners(profile.state, profile.district, top.scheme.id);
       }
+      setCurrentStep(2);
     } catch (err) {
-      console.warn("Backend API recommend call completed or timed out, keeping instant results:", err);
+      console.warn("Backend API offline, using inline rule engine fallback:", err);
+      const FALLBACK_SCHEMES = [
+        { id: "SCH_MSY", code: "MSY", name_en: "Mahila Samriddhi Yojana (MSY)", name_hi: "महिला समृद्धि योजना (MSY)", category_target: ["SC"], gender_target: ["Female"], max_income_rural: 300000, max_income_urban: 300000, max_loan_amount: 140000, interest_rate_pa: 4.0, max_tenure_months: 60, moratorium_months: 6, nsfdc_subsidy_pct: 14.0, promoter_contribution_pct: 5.0, allowed_business_types: ["Micro Enterprise","Handicraft","Tailoring","Dairy/Agri","Retail Shop","Beauty Parlour"], description_en: "Concessional micro-credit for SC women entrepreneurs.", description_hi: "अनुसूचित जाति की महिला उद्यमियों के लिए रियायती माइक्रो-क्रेडिट।", required_documents: [{id:"doc_aadhaar",name_en:"Aadhaar Card",name_hi:"आधार कार्ड",mandatory:true},{id:"doc_caste",name_en:"SC Caste Certificate",name_hi:"अनुसूचित जाति प्रमाणपत्र",mandatory:true},{id:"doc_income",name_en:"Income Certificate",name_hi:"आय प्रमाण पत्र",mandatory:true},{id:"doc_bank",name_en:"Bank Passbook",name_hi:"बैंक पासबुक",mandatory:true}] },
+        { id: "SCH_MCS", code: "MCS", name_en: "Micro Credit Scheme (MCS)", name_hi: "माइक्रो क्रेडिट योजना (MCS)", category_target: ["SC"], gender_target: ["Male","Female","Other"], max_income_rural: 300000, max_income_urban: 300000, max_loan_amount: 140000, interest_rate_pa: 5.0, max_tenure_months: 60, moratorium_months: 6, nsfdc_subsidy_pct: 10.0, promoter_contribution_pct: 5.0, allowed_business_types: ["Micro Enterprise","Small Retail","Artisan Work","Services","Transport","Repair Shop"], description_en: "Financial assistance for small business units and tiny trade.", description_hi: "छोटे व्यावसायिक इकाइयों के लिए वित्तीय सहायता।", required_documents: [{id:"doc_aadhaar",name_en:"Aadhaar Card",name_hi:"आधार कार्ड",mandatory:true},{id:"doc_caste",name_en:"SC Caste Certificate",name_hi:"अनुसूचित जाति प्रमाणपत्र",mandatory:true},{id:"doc_income",name_en:"Income Certificate",name_hi:"आय प्रमाण पत्र",mandatory:true},{id:"doc_bank",name_en:"Bank Passbook",name_hi:"बैंक पासबुक",mandatory:true}] },
+        { id: "SCH_TLS", code: "TLS", name_en: "Term Loan Scheme (TLS)", name_hi: "टर्म लोन योजना (TLS)", category_target: ["SC"], gender_target: ["Male","Female","Other"], max_income_rural: 300000, max_income_urban: 300000, max_loan_amount: 1500000, interest_rate_pa: 6.0, max_tenure_months: 120, moratorium_months: 6, nsfdc_subsidy_pct: 0.0, promoter_contribution_pct: 10.0, allowed_business_types: ["Manufacturing","Services","Agriculture Allied","Small Industry","Transport Fleet","Food Processing"], description_en: "Term loan up to ₹15 Lakhs for transport, service, manufacturing.", description_hi: "परिवहन, सेवा और विनिर्माण के लिए ₹15 लाख तक टर्म लोन।", required_documents: [{id:"doc_aadhaar",name_en:"Aadhaar Card",name_hi:"आधार कार्ड",mandatory:true},{id:"doc_caste",name_en:"SC Caste Certificate",name_hi:"अनुसूचित जाति प्रमाणपत्र",mandatory:true},{id:"doc_income",name_en:"Income Certificate",name_hi:"आय प्रमाण पत्र",mandatory:true},{id:"doc_project_report",name_en:"Project Report",name_hi:"परियोजना रिपोर्ट",mandatory:true}] },
+        { id: "SCH_MKY", code: "MKY", name_en: "Mahila Kisan Yojana (MKY)", name_hi: "महिला किसान योजना (MKY)", category_target: ["SC"], gender_target: ["Female"], max_income_rural: 300000, max_income_urban: 300000, max_loan_amount: 200000, interest_rate_pa: 5.0, max_tenure_months: 60, moratorium_months: 6, nsfdc_subsidy_pct: 12.0, promoter_contribution_pct: 5.0, allowed_business_types: ["Dairy/Agri","Poultry","Organic Farming","Horticulture","Bee Keeping","Agri Processing"], description_en: "Credit for SC women farmers for agriculture activities.", description_hi: "कृषि गतिविधियों के लिए SC महिला किसानों को ऋण।", required_documents: [{id:"doc_aadhaar",name_en:"Aadhaar Card",name_hi:"आधार कार्ड",mandatory:true},{id:"doc_caste",name_en:"SC Caste Certificate",name_hi:"अनुसूचित जाति प्रमाणपत्र",mandatory:true},{id:"doc_land_patta",name_en:"Land Document",name_hi:"भूमि दस्तावेज",mandatory:true},{id:"doc_bank",name_en:"Bank Account",name_hi:"बैंक खाता",mandatory:true}] },
+        { id: "SCH_GBS", code: "GBS", name_en: "Green Business Scheme (GBS)", name_hi: "ग्रीन बिजनेस योजना (GBS)", category_target: ["SC"], gender_target: ["Male","Female","Other"], max_income_rural: 300000, max_income_urban: 300000, max_loan_amount: 3000000, interest_rate_pa: 6.0, max_tenure_months: 120, moratorium_months: 6, nsfdc_subsidy_pct: 0.0, promoter_contribution_pct: 10.0, allowed_business_types: ["E-Rickshaw","Solar Power Unit","Waste Recycling","Bio-gas Plant","Eco-friendly Packaging"], description_en: "Support for eco-friendly businesses like E-Rickshaws and Solar.", description_hi: "ई-रिक्शा और सौर ऊर्जा जैसे पर्यावरण अनुकूल व्यवसायों के लिए सहायता।", required_documents: [{id:"doc_aadhaar",name_en:"Aadhaar Card",name_hi:"आधार कार्ड",mandatory:true},{id:"doc_caste",name_en:"SC Caste Certificate",name_hi:"अनुसूचित जाति प्रमाणपत्र",mandatory:true},{id:"doc_income",name_en:"Income Certificate",name_hi:"आय प्रमाण पत्र",mandatory:true},{id:"doc_project_report",name_en:"Project Report",name_hi:"परियोजना रिपोर्ट",mandatory:true}] }
+      ];
+      const cat = (profile.category || "SC").toUpperCase();
+      const gen = (profile.gender || "Female").charAt(0).toUpperCase() + (profile.gender || "Female").slice(1).toLowerCase();
+      const inc = parseFloat(profile.annual_income || 120000);
+      const loc = profile.locality || "Rural";
+      const loan = parseFloat(profile.loan_amount_requested || 100000);
+      const biz = profile.business_type || "Micro Enterprise";
+      const fallbackRecs = FALLBACK_SCHEMES.map(s => {
+        const passed = [], failed = [];
+        if (cat === "SC") passed.push({rule_code:"RULE_CATEGORY",label_en:`Category (${cat}) matches`,label_hi:"वर्ग मेल खाता है",passed:true}); else failed.push({rule_code:"RULE_CATEGORY",label_en:`Category (${cat}) does not match`,label_hi:"वर्ग मेल नहीं खाता",passed:false});
+        if (s.gender_target.includes(gen)) passed.push({rule_code:"RULE_GENDER",label_en:`Gender (${gen}) eligible`,label_hi:"लिंग पात्र है",passed:true}); else failed.push({rule_code:"RULE_GENDER",label_en:`Restricted to ${s.gender_target.join(", ")}`,label_hi:"केवल आरक्षित",passed:false});
+        const incCap = loc === "Rural" ? s.max_income_rural : s.max_income_urban;
+        if (inc <= incCap) passed.push({rule_code:"RULE_INCOME",label_en:`Income ₹${inc.toLocaleString()} within ₹${incCap.toLocaleString()}`,label_hi:"आय सीमा में",passed:true}); else failed.push({rule_code:"RULE_INCOME",label_en:`Income exceeds ₹${incCap.toLocaleString()}`,label_hi:"आय सीमा से अधिक",passed:false});
+        if (loan <= s.max_loan_amount) passed.push({rule_code:"RULE_LOAN_CAP",label_en:`Loan ₹${loan.toLocaleString()} within ₹${s.max_loan_amount.toLocaleString()}`,label_hi:"ऋण सीमा में",passed:true}); else passed.push({rule_code:"RULE_LOAN_CAP_CAPPED",label_en:`Loan capped at ₹${s.max_loan_amount.toLocaleString()}`,label_hi:"ऋण सीमित",passed:true});
+        const bizMatch = s.allowed_business_types.some(b => b.toLowerCase().includes(biz.toLowerCase())) || s.allowed_business_types.includes("Micro Enterprise");
+        if (bizMatch) passed.push({rule_code:"RULE_BUSINESS_TYPE",label_en:`Business type aligns`,label_hi:"व्यापार प्रकार अनुकूल",passed:true}); else failed.push({rule_code:"RULE_BUSINESS_TYPE",label_en:`Business type outside focus`,label_hi:"व्यापार प्रकार बाहर",passed:false});
+        const eligible = failed.length === 0;
+        const total = passed.length + failed.length;
+        let score = total > 0 ? Math.round((passed.length / total) * 100) : 0;
+        if (gen === "Female" && s.gender_target.length === 1 && s.gender_target[0] === "Female") score = Math.min(100, score + 5);
+        return { scheme: s, is_eligible: eligible, match_score: score, passed_rules: passed, failed_rules: failed, capped_loan_amount: Math.min(loan, s.max_loan_amount), interest_rate_pa: s.interest_rate_pa, max_tenure_months: s.max_tenure_months, moratorium_months: s.moratorium_months };
+      }).sort((a, b) => (b.is_eligible - a.is_eligible) || (b.match_score - a.match_score));
+      setRecommendations(fallbackRecs);
+      if (fallbackRecs.length > 0) {
+        setSelectedScheme(fallbackRecs[0].scheme);
+        calculateEmi(fallbackRecs[0].capped_loan_amount, fallbackRecs[0].interest_rate_pa, fallbackRecs[0].max_tenure_months, fallbackRecs[0].moratorium_months, (profile.annual_income || 120000) / 12);
+      }
+      setCurrentStep(2);
     } finally {
       setLoading(false);
     }

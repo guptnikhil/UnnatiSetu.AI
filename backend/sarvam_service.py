@@ -68,7 +68,7 @@ async def transcribe_audio(audio_bytes: bytes, filename: str = "audio.webm") -> 
         }
     """
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
                 f"{SARVAM_BASE_URL}/speech-to-text",
                 headers=_speech_headers(),
@@ -102,7 +102,7 @@ async def detect_language(text: str) -> dict:
         }
     """
     try:
-        async with httpx.AsyncClient(timeout=2.5) as client:
+        async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(
                 f"{SARVAM_BASE_URL}/text-lid",
                 headers=_chat_headers(),
@@ -145,7 +145,7 @@ async def translate_text(text: str, target_language_code: str = "en-IN", source_
         payload["source_language_code"] = source_language_code
 
     try:
-        async with httpx.AsyncClient(timeout=3.0) as client:
+        async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.post(
                 f"{SARVAM_BASE_URL}/translate",
                 headers=_chat_headers(),
@@ -254,9 +254,8 @@ def _local_regex_extract(transcript: str) -> dict:
 async def extract_profile_from_text(transcript: str) -> dict:
     """
     Extracts structured applicant fields from free-form text using Sarvam AI (sarvam-m).
-    Falls back to local rule-based NLP if SARVAM_API_KEY is not set or call fails/times out.
+    Falls back to local rule-based NLP if SARVAM_API_KEY is not set or call fails.
     """
-    local_p = _local_regex_extract(transcript)
     try:
         payload = {
             "model": "sarvam-m",
@@ -268,7 +267,7 @@ async def extract_profile_from_text(transcript: str) -> dict:
             "max_tokens": 512,
         }
 
-        async with httpx.AsyncClient(timeout=2.5) as client:
+        async with httpx.AsyncClient(timeout=20.0) as client:
             response = await client.post(
                 f"{SARVAM_BASE_URL}/chat/completions",
                 headers=_chat_headers(),
@@ -285,18 +284,17 @@ async def extract_profile_from_text(transcript: str) -> dict:
             extracted = json.loads(raw_content)
 
         clean_profile = {k: v for k, v in extracted.items() if v is not None}
-        # Merge local regex findings to ensure full coverage
-        merged_profile = {**local_p, **clean_profile}
         return {
-            "extracted_profile": merged_profile,
-            "confidence_note": "Extracted via Sarvam AI & Local Intelligent NLP Engine",
+            "extracted_profile": clean_profile,
+            "confidence_note": "Extracted via Sarvam AI (sarvam-m)",
             "success": True,
         }
     except Exception as exc:
-        print(f"[Sarvam AI] Fast extraction fallback to local regex parser due to: {exc}")
+        print(f"[Sarvam AI] Extraction fallback to local regex parser due to: {exc}")
+        local_p = _local_regex_extract(transcript)
         return {
             "extracted_profile": local_p,
-            "confidence_note": "Extracted via Fast Local Intelligent NLP Engine",
+            "confidence_note": "Extracted via Local Intelligent NLP Parser",
             "success": True if local_p else False,
         }
 

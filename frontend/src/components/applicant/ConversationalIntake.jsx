@@ -204,7 +204,7 @@ export default function ConversationalIntake() {
             {t.extractHeader}
           </h3>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             {/* Category */}
             <div className={`p-3 rounded-xl border transition-all ${
               justUpdated ? 'ring-2 ring-amber-500 shadow-lg shadow-amber-500/20' : ''
@@ -332,13 +332,8 @@ export default function ConversationalIntake() {
         onTranscript={(text, extractedProfile) => {
           setInputText(text);
           if (extractedProfile && Object.keys(extractedProfile).length > 0) {
-            const newProfile = { ...applicantProfile, ...extractedProfile };
-            setApplicantProfile(newProfile);
+            setApplicantProfile(prev => ({ ...prev, ...extractedProfile }));
             triggerFieldHighlight();
-            // Automatically evaluate schemes instantly for seamless voice intake flow
-            evaluateSchemes(newProfile);
-          } else {
-            evaluateSchemes(applicantProfile);
           }
         }}
         theme={theme}
