@@ -95,10 +95,7 @@ export default function ConversationalIntake() {
     evaluateSchemes(applicantProfile);
   };
 
-  const handleSubmit = async () => {
-    if (inputText.trim()) {
-      await handleTextParseExtract();
-    }
+  const handleSubmit = () => {
     handleEvaluate();
   };
 
