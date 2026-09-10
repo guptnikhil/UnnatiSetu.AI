@@ -329,14 +329,17 @@ export default function AdminDashboard() {
               <BarChart data={schemeChartData}>
                 <XAxis dataKey="name" stroke={theme === 'light' ? '#94a3b8' : '#64748b'} fontSize={10} tickLine={false} />
                 <YAxis stroke={theme === 'light' ? '#94a3b8' : '#64748b'} fontSize={10} tickLine={false} />
-                <Tooltip contentStyle={{
-                  background: theme === 'light' ? '#ffffff' : '#0f172a',
-                  borderColor: theme === 'light' ? '#e2e8f0' : '#334155',
-                  color: theme === 'light' ? '#0f172a' : '#ffffff',
-                  borderRadius: '8px',
-                  fontSize: '12px'
-                }} />
-                <Bar dataKey="val" fill="#f59e0b" radius={[6, 6, 0, 0]} />
+                <Tooltip
+                  cursor={{ fill: 'transparent' }}
+                  contentStyle={{
+                    background: theme === 'light' ? '#ffffff' : '#0f172a',
+                    borderColor: theme === 'light' ? '#e2e8f0' : '#334155',
+                    color: theme === 'light' ? '#0f172a' : '#ffffff',
+                    borderRadius: '8px',
+                    fontSize: '12px'
+                  }}
+                />
+                <Bar dataKey="val" fill="#f59e0b" radius={[6, 6, 0, 0]} activeBar={{ fill: '#d97706' }} />
               </BarChart>
             </ResponsiveContainer>
           </div>
