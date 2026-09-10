@@ -7,6 +7,7 @@ export default function VoiceAgentOverlay({ isOpen, onClose, onTranscript, theme
   const [state, setState] = useState('listening'); // 'listening' | 'processing' | 'result'
   const [stream, setStream] = useState(null);
   const [elapsed, setElapsed] = useState(0);
+  const [liveTranscript, setLiveTranscript] = useState('');
 
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
@@ -14,6 +15,7 @@ export default function VoiceAgentOverlay({ isOpen, onClose, onTranscript, theme
   const rafRef = useRef(null);
   const timerRef = useRef(null);
   const startTimeRef = useRef(null);
+  const recognitionRef = useRef(null);
 
   const { getFrequencyData, getVolume } = useAudioAnalyser(stream);
 
@@ -33,12 +35,88 @@ export default function VoiceAgentOverlay({ isOpen, onClose, onTranscript, theme
     affordability_monthly_emi: 2500
   };
 
+  const extractProfileLocal = (transcript) => {
+    if (!transcript) return {};
+    const lower = transcript.toLowerCase();
+    const profile = {};
+
+    if (/\b(sc|scheduled caste|dalit|अनुसूचित जाति)\b/i.test(lower)) profile.category = "SC";
+    else if (/\b(st|scheduled tribe|tribal|अनुसूचित जनजाति)\b/i.test(lower)) profile.category = "ST";
+    else if (/\b(obc|other backward|पिछड़ा)\b/i.test(lower)) profile.category = "OBC";
+
+    if (/\b(female|woman|lady|महिला|श्रीमती|देवी)\b/i.test(lower)) profile.gender = "Female";
+    else if (/\b(male|man|guy|पुरुष|आदमी|श्री)\b/i.test(lower)) profile.gender = "Male";
+
+    const lakhMatch = lower.match(/(?:₹|rs\.?|inr)?\s*([\d\.]+)\s*(?:lakh|lacs?|लाख)/i);
+    if (lakhMatch) {
+      const val = parseFloat(lakhMatch[1]) * 100000;
+      if (lower.includes("earn") || lower.includes("income") || lower.includes("annually") || lower.includes("आय")) {
+        profile.annual_income = val;
+      } else {
+        profile.loan_amount_requested = val;
+      }
+    }
+
+    const numMatch = lower.match(/(?:₹|rs\.?|inr)?\s*([\d,]{5,8})/i);
+    if (numMatch) {
+      const val = parseFloat(numMatch[1].replace(/,/g, ''));
+      if (val >= 10000 && !profile.loan_amount_requested) {
+        profile.loan_amount_requested = val;
+      }
+    }
+
+    if (/\b(dairy|cow|milk|डेयरी|पशुपालन|किसान)\b/i.test(lower)) profile.business_type = "Dairy/Agri";
+    else if (/\b(beauty|parlour|salon|ब्यूटी पार्लर)\b/i.test(lower)) profile.business_type = "Beauty Parlour";
+    else if (/\b(tailor|tailoring|boutique|सिलाई)\b/i.test(lower)) profile.business_type = "Tailoring";
+    else if (/\b(transport|vehicle|auto|परिवहन)\b/i.test(lower)) profile.business_type = "Transport";
+    else if (/\b(e-rickshaw|rickshaw|green|solar|ई-रिक्शा)\b/i.test(lower)) profile.business_type = "E-Rickshaw";
+    else if (/\b(shop|retail|grocery|enterprise|व्यापार|दुकान)\b/i.test(lower)) profile.business_type = "Micro Enterprise";
+
+    if (lower.includes("lucknow") || lower.includes("up") || lower.includes("uttar pradesh") || lower.includes("उत्तर प्रदेश")) {
+      profile.state = "Uttar Pradesh";
+      profile.district = "Lucknow";
+    } else if (lower.includes("delhi") || lower.includes("दिल्ली")) {
+      profile.state = "Delhi";
+      profile.district = "Central Delhi";
+    } else if (lower.includes("bihar") || lower.includes("patna") || lower.includes("बिहार")) {
+      profile.state = "Bihar";
+      profile.district = "Patna";
+    }
+
+    return profile;
+  };
+
   useEffect(() => {
     if (!isOpen) return;
 
     let cancelled = false;
     setState('listening');
     setElapsed(0);
+    setLiveTranscript('');
+
+    // Web Speech API Native Live Recognition
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      try {
+        const rec = new SpeechRecognition();
+        rec.continuous = true;
+        rec.interimResults = true;
+        rec.lang = 'en-IN';
+        rec.onresult = (e) => {
+          let currentText = '';
+          for (let i = e.resultIndex; i < e.results.length; i++) {
+            currentText += e.results[i][0].transcript;
+          }
+          if (currentText.trim()) {
+            setLiveTranscript(currentText.trim());
+          }
+        };
+        rec.start();
+        recognitionRef.current = rec;
+      } catch (err) {
+        console.warn('[VoiceAgent] Web Speech API init note:', err);
+      }
+    }
 
     const initMic = async () => {
       try {
@@ -70,6 +148,9 @@ export default function VoiceAgentOverlay({ isOpen, onClose, onTranscript, theme
 
     return () => {
       cancelled = true;
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch {}
+      }
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         try { mediaRecorderRef.current.stop(); } catch {}
       }
@@ -175,23 +256,25 @@ export default function VoiceAgentOverlay({ isOpen, onClose, onTranscript, theme
 
   const isDark = theme !== 'light';
 
-  // Process & Return Demo Result cleanly
+  // Fast Instant Voice Completion & Field Extraction
   const handleCompleteVoice = () => {
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch {}
+    }
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       try { mediaRecorderRef.current.stop(); } catch {}
     }
     if (stream) {
       stream.getTracks().forEach(t => t.stop());
     }
-    setState('processing');
 
-    setTimeout(() => {
-      setState('result');
-      setTimeout(() => {
-        onTranscript(DEMO_TRANSCRIPT, DEMO_EXTRACTED_PROFILE);
-        onClose();
-      }, 600);
-    }, 600);
+    const transcriptToUse = liveTranscript || DEMO_TRANSCRIPT;
+    const localExtracted = extractProfileLocal(transcriptToUse);
+    const profileToUse = { ...DEMO_EXTRACTED_PROFILE, ...localExtracted };
+
+    setState('result');
+    onTranscript(transcriptToUse, profileToUse);
+    onClose();
   };
 
   const overlay = (
@@ -279,10 +362,10 @@ export default function VoiceAgentOverlay({ isOpen, onClose, onTranscript, theme
       <div className="w-full max-w-lg space-y-4">
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-xl text-center">
           <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider block mb-1">
-            Demo Voice Input Preview:
+            {liveTranscript ? "Live Spoken Voice Input:" : "Voice Input / Demo Preview:"}
           </span>
-          <p className="text-xs sm:text-sm text-slate-200 font-medium">
-            "{DEMO_TRANSCRIPT}"
+          <p className="text-xs sm:text-sm text-slate-200 font-medium italic">
+            "{liveTranscript || DEMO_TRANSCRIPT}"
           </p>
         </div>
 

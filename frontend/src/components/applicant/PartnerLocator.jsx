@@ -301,7 +301,7 @@ export default function PartnerLocator() {
             )}
 
             {/* Real Leaflet Map */}
-            <div className={`relative w-full h-[400px] rounded-xl overflow-hidden border ${
+            <div className={`relative w-full h-64 sm:h-80 lg:h-[400px] rounded-xl overflow-hidden border ${
               theme === 'light' ? 'border-slate-200' : 'border-slate-800'
             }`}>
               <style>{`
